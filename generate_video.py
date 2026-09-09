@@ -20,14 +20,33 @@ PROMPT_FILE = "prompts.txt"
 BOT_TOKEN = os.getenv("BOT_TOKEN", "")
 CHAT_ID = os.getenv("CHAT_ID", "")
 
+def send_telegram_photo(photo_path, caption=""):
+    if not BOT_TOKEN or not CHAT_ID: return
+    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendPhoto"
+    try:
+        if os.path.exists(photo_path):
+            with open(photo_path, "rb") as file:
+                requests.post(url, data={"chat_id": CHAT_ID, "caption": caption}, files={"photo": file}, timeout=15)
+    except Exception as e:
+        print(f"Telegram photo error: {e}")
+
+def send_telegram_video(video_path, caption=""):
+    if not BOT_TOKEN or not CHAT_ID: return
+    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendVideo"
+    try:
+        if os.path.exists(video_path):
+            with open(video_path, "rb") as file:
+                requests.post(url, data={"chat_id": CHAT_ID, "caption": caption}, files={"video": file}, timeout=300)
+    except Exception as e:
+        print(f"Telegram upload error: {e}")
+
 async def generate_voiceover(text, output_file):
     communicate = edge_tts.Communicate(text, "hi-IN-MadhurNeural", rate="+10%", pitch="+2Hz")
     await communicate.save(output_file)
 
 def read_prompts():
     if not os.path.exists(PROMPT_FILE): return {}
-    with open(PROMPT_FILE, "r", encoding="utf-8") as f:
-        lines = f.readlines()
+    with open(PROMPT_FILE, "r", encoding="utf-8") as f: lines = f.readlines()
     data = {}
     for idx, line in enumerate(lines, start=1):
         line = line.strip()
@@ -37,6 +56,18 @@ def read_prompts():
         else:
             data[idx] = {"image_prompt": line, "vo_text": line}
     return data
+
+async def live_screenshot_monitor(page, machine_id, interval=8):
+    shot_count = 1
+    while True:
+        try:
+            await asyncio.sleep(interval)
+            shot_path = f"live_video_m{machine_id}.png"
+            await page.screenshot(path=shot_path)
+            send_telegram_photo(shot_path, f"🎬 Upsampler Machine {machine_id} Live Status #{shot_count}")
+            shot_count += 1
+        except asyncio.CancelledError: break
+        except Exception as e: print(f"Live shot error: {e}")
 
 def create_dynamic_captions(text, duration):
     if not text: return []
@@ -51,8 +82,7 @@ def create_dynamic_captions(text, duration):
             txt_clip = TextClip(chunk, fontsize=65, color='yellow', font="Arial-Bold", stroke_color='black', stroke_width=3)
             txt_clip = txt_clip.set_position(('center', 1500)).set_start(current_time).set_duration(time_per_chunk)
             text_clips.append(txt_clip)
-        except Exception:
-            pass
+        except Exception: pass
         current_time += time_per_chunk
     return text_clips
 
@@ -67,18 +97,17 @@ async def main():
     motion_prompt = scene_info["image_prompt"]
     vo_text = scene_info["vo_text"]
 
-    # 1. Edge-TTS Audio Generate karo
     voice_path = os.path.join(VIDEO_DIR, f"Voice_{machine_id}.mp3")
-    if vo_text:
-        await generate_voiceover(vo_text, voice_path)
+    if vo_text: await generate_voiceover(vo_text, voice_path)
 
     raw_video_path = os.path.join(VIDEO_DIR, f"Raw_Video_{machine_id}.mp4")
 
-    # 2. Upsampler.com se Video Generate karo
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
         context = await browser.new_context(accept_downloads=True, viewport={'width': 720, 'height': 1280})
         page = await context.new_page()
+
+        monitor_task = asyncio.create_task(live_screenshot_monitor(page, machine_id, interval=8))
 
         await page.goto("https://upsampler.com/free-video-generator-no-signup", wait_until="domcontentloaded", timeout=60000)
         await asyncio.sleep(3)
@@ -88,12 +117,10 @@ async def main():
         await asyncio.sleep(3)
 
         loc = page.locator("textarea, input[type='text']").first
-        if await loc.is_visible():
-            await loc.fill(motion_prompt)
+        if await loc.is_visible(): await loc.fill(motion_prompt)
 
         generate_btn = page.get_by_role("button", name="Generate Video", exact=True)
-        if await generate_btn.is_visible():
-            await generate_btn.click()
+        if await generate_btn.is_visible(): await generate_btn.click()
 
         video_element = page.locator("video:not([src*='_static'])").first
         start_time = time.time()
@@ -106,7 +133,11 @@ async def main():
                 break
 
         if video_ready:
+            pre_video_shot = f"pre_video_m{machine_id}.png"
+            await page.screenshot(path=pre_video_shot)
+            send_telegram_photo(pre_video_shot, f"📸 Video #{machine_id} Generated! Downloading...")
             await asyncio.sleep(3)
+
             download_btn = page.locator("a:has-text('Download'), button:has-text('Download')").first
             video_src = await video_element.get_attribute("src")
             if await download_btn.is_visible():
@@ -117,20 +148,26 @@ async def main():
             elif video_src:
                 v_data = requests.get(video_src).content
                 with open(raw_video_path, "wb") as f: f.write(v_data)
+
+        monitor_task.cancel()
         await browser.close()
 
-    # 3. MoviePy se Original Sound Mute karke Microsoft Voice aur Captions lagao
+    # Original sound mute करके Voiceover + Captions सिंक करना
     if os.path.exists(raw_video_path) and os.path.exists(voice_path):
         audio_clip = AudioFileClip(voice_path)
         duration = audio_clip.duration + 0.2
 
-        video_clip = VideoFileClip(raw_video_path).subclip(0, min(duration, VideoFileClip(raw_video_path).duration))
-        video_clip = video_clip.set_audio(audio_clip).resize(height=1920)
+        raw_clip = VideoFileClip(raw_video_path)
+        video_clip = raw_clip.subclip(0, min(duration, raw_clip.duration)).resize(height=1920)
+        video_clip = video_clip.set_audio(audio_clip)
 
         captions = create_dynamic_captions(vo_text, duration)
         final_scene = CompositeVideoClip([video_clip] + captions).set_duration(duration)
 
-        final_scene.write_videofile(os.path.join(VIDEO_DIR, f"Scene_{machine_id}.mp4"), fps=24, codec="libx264", audio_codec="aac")
+        out_scene_path = os.path.join(VIDEO_DIR, f"Scene_{machine_id}.mp4")
+        final_scene.write_videofile(out_scene_path, fps=24, codec="libx264", audio_codec="aac")
+        
+        send_telegram_video(out_scene_path, f"🎬 Scene #{machine_id} Complete with Voice & Captions!")
 
 if __name__ == "__main__":
     asyncio.run(main())
