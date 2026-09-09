@@ -12,20 +12,32 @@ SAVE_FOLDER = "ai_generated_images"
 os.makedirs(SAVE_FOLDER, exist_ok=True)
 PROMPT_FILE = "prompts.txt"
 
+BOT_TOKEN = os.getenv("BOT_TOKEN", "")
+CHAT_ID = os.getenv("CHAT_ID", "")
+
+def send_telegram_photo(photo_path, caption=""):
+    if not BOT_TOKEN or not CHAT_ID: return
+    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendPhoto"
+    try:
+        if os.path.exists(photo_path):
+            with open(photo_path, "rb") as file:
+                requests.post(url, data={"chat_id": CHAT_ID, "caption": caption}, files={"photo": file}, timeout=15)
+    except Exception as e:
+        print(f"Telegram photo error: {e}")
+
 def download_image(url, filename):
     try:
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36'
-        }
+        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36'}
         clean_url = url.split("?")[0]
-        response = requests.get(clean_url, headers=headers, stream=True)
+        response = requests.get(clean_url, headers=headers, stream=True, timeout=30)
         if response.status_code == 200:
             with open(filename, 'wb') as f:
-                for chunk in response.iter_content(1024):
-                    f.write(chunk)
+                for chunk in response.iter_content(1024): f.write(chunk)
             print(f"✅ SAVED: {filename}")
+            return True
     except Exception as e:
-        print(f"❌ Error: {e}")
+        print(f"❌ Download Error: {e}")
+    return False
 
 def run_browser_worker(worker_id, tasks_list):
     for image_num, prompt_text in tasks_list:
@@ -35,8 +47,8 @@ def run_browser_worker(worker_id, tasks_list):
             context = browser.new_context(viewport={'width': 720, 'height': 1280}) 
             page = context.new_page()
             try:
-                page.goto("https://www.bing.com/images/create")
-                time.sleep(5) 
+                page.goto("https://www.bing.com/images/create", timeout=60000)
+                time.sleep(4) 
                 search_box = page.get_by_placeholder("Describe the image you want to create")
                 if not search_box.is_visible():
                     search_box = page.locator("textarea[name='q'], #sb_form_q").first
@@ -48,13 +60,19 @@ def run_browser_worker(worker_id, tasks_list):
                     time.sleep(2) 
                     all_image_srcs = page.evaluate("() => Array.from(document.querySelectorAll('img')).map(img => img.src)")
                     for src in all_image_srcs:
-                        if "OIG" in src:
+                        if "OIG" in src or "th?id=" in src:
                             img_url = src
                             break 
-                    if img_url: break 
+                    if img_url:
+                        pre_shot = os.path.join(SAVE_FOLDER, f"pre_download_{image_num}.png")
+                        page.screenshot(path=pre_shot)
+                        send_telegram_photo(pre_shot, f"📸 Image #{image_num} Ready on Bing!")
+                        break 
                 
                 if img_url:
-                    download_image(img_url, os.path.join(SAVE_FOLDER, f"Generated_Image_{image_num}.jpg"))
+                    filepath = os.path.join(SAVE_FOLDER, f"Generated_Image_{image_num}.jpg")
+                    if download_image(img_url, filepath):
+                        send_telegram_photo(filepath, f"✅ Generated Image #{image_num}")
             except Exception as e:
                 print(f"⚠️ Error Image {image_num}: {e}")
             finally:
