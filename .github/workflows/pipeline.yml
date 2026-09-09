@@ -1,4 +1,4 @@
-name: Automated AI Vertical Video Pipeline
+name: Automated Image to AI Video Pipeline (9:16)
 
 on:
   workflow_dispatch:
@@ -41,6 +41,12 @@ jobs:
   generate-videos-and-edit:
     needs: generate-images
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        machine_id: ${{ fromJson(needs.generate-images.outputs.matrix) }}
+
     steps:
     - uses: actions/checkout@v4
     - uses: actions/setup-python@v5
@@ -55,18 +61,44 @@ jobs:
 
     - run: |
         pip install -r requirements.txt
+        playwright install chromium
+        playwright install-deps chromium
         sudo apt-get update && sudo apt-get install -y ffmpeg imagemagick
-        # ImageMagick policy fix for MoviePy TextClips
         sudo sed -i 's/pattern="PDF"/pattern="NONE"/' /etc/ImageMagick-6/policy.xml || true
 
-    - name: Run Voiceover, Captions & Video Assembler
+    - name: Run Upsampler Video Generator & Voice Editor
       env:
         BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
         CHAT_ID: ${{ secrets.CHAT_ID }}
-      run: python generate_video.py
+      run: python generate_video.py ${{ matrix.machine_id }}
 
-    - name: Save Final Video Artifact
+    - name: Save Video Artifact
+      if: always()
       uses: actions/upload-artifact@v4
       with:
-        name: Final_Vertical_Masterpiece
+        name: video_machine_${{ matrix.machine_id }}
+        path: generated_videos/
+
+  post-process-and-combine:
+    needs: generate-videos-and-edit
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Install FFmpeg & ImageMagick
+      run: sudo apt-get update && sudo apt-get install -y ffmpeg imagemagick
+
+    - name: Download All Video Artifacts
+      uses: actions/download-artifact@v4
+      with:
+        path: all_downloaded_videos/
+
+    - name: Run Final Masterpiece Assembler
+      run: python process_videos.py
+
+    - name: Upload Final Video Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: Final_Long_Story_Video
         path: Final_Long_Educational_Video.mp4
