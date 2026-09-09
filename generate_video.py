@@ -4,158 +4,133 @@ if not hasattr(Image, 'ANTIALIAS'):
     Image.ANTIALIAS = Image.Resampling.LANCZOS
 
 import os
+import sys
+import time
 import asyncio
 import edge_tts
-from moviepy.editor import ImageClip, AudioFileClip, concatenate_videoclips, CompositeAudioClip, CompositeVideoClip, TextClip, ColorClip, vfx
-import moviepy.audio.fx.all as afx
 import requests
+from playwright.async_api import async_playwright
+from moviepy.editor import VideoFileClip, AudioFileClip, TextClip, CompositeVideoClip
 
+IMAGE_DIR = "ai_generated_images"
+VIDEO_DIR = "generated_videos"
+os.makedirs(VIDEO_DIR, exist_ok=True)
 PROMPT_FILE = "prompts.txt"
-IMAGE_FOLDER = "ai_generated_images"
-FINAL_OUTPUT = "Final_Long_Educational_Video.mp4"
 
 BOT_TOKEN = os.getenv("BOT_TOKEN", "")
 CHAT_ID = os.getenv("CHAT_ID", "")
 
-CREATOR_NAME = "Kahani Zone"
-CHANNEL_NAME = "@KahaniZone"
-TOPIC_NAME = "College Pyar ki Kahani"
-
-INTRO_HOOK_TEXT = f"Dosto, dekhiye yeh khubsurat kahani. Agar aapko bhi pyaar par yakeen hai, toh video ko end tak zaroor dekhna."
-
 async def generate_voiceover(text, output_file):
-    communicate = edge_tts.Communicate(text, "hi-IN-MadhurNeural", rate="+15%", pitch="+2Hz", volume="+30%")
+    communicate = edge_tts.Communicate(text, "hi-IN-MadhurNeural", rate="+10%", pitch="+2Hz")
     await communicate.save(output_file)
 
-def resize_func_zoomin(t): return 1 + 0.02 * t  
-def resize_func_zoomout(t): return 1.1 - 0.02 * t 
+def read_prompts():
+    if not os.path.exists(PROMPT_FILE): return {}
+    with open(PROMPT_FILE, "r", encoding="utf-8") as f:
+        lines = f.readlines()
+    data = {}
+    for idx, line in enumerate(lines, start=1):
+        line = line.strip()
+        if "|" in line:
+            parts = line.split("|")
+            data[idx] = {"image_prompt": parts[0].strip(), "vo_text": parts[1].strip()}
+        else:
+            data[idx] = {"image_prompt": line, "vo_text": line}
+    return data
 
 def create_dynamic_captions(text, duration):
     if not text: return []
     words = text.split()
     chunks = [' '.join(words[i:i+2]) for i in range(0, len(words), 2)]
     if not chunks: return []
-    
     time_per_chunk = duration / len(chunks)
     text_clips = []
     current_time = 0
-    
     for chunk in chunks:
         try:
-            txt_clip = TextClip(chunk, fontsize=70, color='yellow', font="Arial-Bold", stroke_color='black', stroke_width=3)
-            txt_clip = txt_clip.set_position(('center', 1500)) # 9:16 ke liye thoda niche position
-            txt_clip = txt_clip.set_start(current_time).set_duration(time_per_chunk)
-            txt_clip = txt_clip.crossfadein(0.05)
+            txt_clip = TextClip(chunk, fontsize=65, color='yellow', font="Arial-Bold", stroke_color='black', stroke_width=3)
+            txt_clip = txt_clip.set_position(('center', 1500)).set_start(current_time).set_duration(time_per_chunk)
             text_clips.append(txt_clip)
-        except Exception as e:
-            print(f"Caption error for chunk '{chunk}': {e}")
+        except Exception:
+            pass
         current_time += time_per_chunk
-        
     return text_clips
 
-def send_telegram_video(video_path, caption=""):
-    if not BOT_TOKEN or not CHAT_ID:
-        return
-    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendVideo"
-    try:
-        if os.path.exists(video_path):
-            with open(video_path, "rb") as file:
-                requests.post(url, data={"chat_id": CHAT_ID, "caption": caption}, files={"video": file}, timeout=300)
-    except Exception as e:
-        print(f"Telegram upload error: {e}")
-
 async def main():
-    print("🎬 STARTING 9:16 VERTICAL VIDEO PIPELINE...")
+    machine_id = int(sys.argv[1]) if len(sys.argv) > 1 else 1
+    prompts_data = read_prompts()
     
-    intro_audio_path = "intro_voice.mp3"
-    await generate_voiceover(INTRO_HOOK_TEXT, intro_audio_path)
-    
-    scenes = []
-    if os.path.exists(PROMPT_FILE):
-        with open(PROMPT_FILE, "r", encoding="utf-8") as f:
-            for idx, line in enumerate(f):
-                line = line.strip()
-                if line:
-                    parts = line.split('|')
-                    vo_text = parts[1].strip() if len(parts) > 1 else parts[0].strip()
-                    scenes.append({"video_num": idx + 1, "voiceover": vo_text})
+    img_path = os.path.join(IMAGE_DIR, f"Generated_Image_{machine_id}.jpg")
+    if not os.path.exists(img_path): return
 
-    final_clips = []
-    
-    for i, scene in enumerate(scenes):
-        v_num = scene['video_num']
-        vo_text = scene['voiceover']
-        
-        img_path = os.path.join(IMAGE_FOLDER, f"Generated_Image_{v_num}.jpg")
-        audio_path = os.path.join(IMAGE_FOLDER, f"Voice_{v_num}.mp3")
-        
-        if not os.path.exists(img_path): 
-            print(f"⚠️ Image not found: {img_path}")
-            continue
-            
-        print(f"🎙️ Processing Scene {v_num}...")
-        
-        target_audio = intro_audio_path if i == 0 else audio_path
-        text_to_speak = INTRO_HOOK_TEXT if i == 0 else vo_text
-        
-        if i > 0 and vo_text: 
-            await generate_voiceover(vo_text, audio_path)
-        
-        if not os.path.exists(target_audio): continue
+    scene_info = prompts_data.get(machine_id, {"image_prompt": "Cinematic slow motion", "vo_text": ""})
+    motion_prompt = scene_info["image_prompt"]
+    vo_text = scene_info["vo_text"]
 
-        audio = AudioFileClip(target_audio)
-        duration = audio.duration + 0.3 
+    # 1. Edge-TTS Audio Generate karo
+    voice_path = os.path.join(VIDEO_DIR, f"Voice_{machine_id}.mp3")
+    if vo_text:
+        await generate_voiceover(vo_text, voice_path)
 
-        # 9:16 Resolution: 1080x1920 (Vertical Reels/Shorts Format)
-        img_clip = ImageClip(img_path).set_duration(duration)
-        img_clip = img_clip.resize(width=1080) 
-        img_clip = img_clip.fx(vfx.colorx, 1.15).fx(vfx.lum_contrast, lum=5, contrast=0.1).set_position("center")
-        
-        if i % 2 == 0: img_clip = img_clip.resize(resize_func_zoomin)
-        else: img_clip = img_clip.resize(resize_func_zoomout)
-            
-        bg_clip = ColorClip(size=(1080, 1920), color=(0, 0, 0)).set_duration(duration)
-        
-        # Dynamic Captions Add kar rahe hain
-        dynamic_captions = create_dynamic_captions(text_to_speak, duration)
-        
-        video_clip = CompositeVideoClip([bg_clip, img_clip] + dynamic_captions)
-        video_clip = video_clip.set_audio(audio)
-        
-        if i > 0: video_clip = video_clip.crossfadein(0.5)
-        final_clips.append(video_clip)
+    raw_video_path = os.path.join(VIDEO_DIR, f"Raw_Video_{machine_id}.mp4")
 
-    if not final_clips: 
-        print("❌ No clips generated!")
-        return
+    # 2. Upsampler.com se Video Generate karo
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(headless=True)
+        context = await browser.new_context(accept_downloads=True, viewport={'width': 720, 'height': 1280})
+        page = await context.new_page()
 
-    print("✂️ Assembling 9:16 Vertical Timeline...")
-    final_video = concatenate_videoclips(final_clips, method="compose", padding=-0.3)
-    
-    # Watermark
-    try:
-        watermark = TextClip(f" {CHANNEL_NAME} ", fontsize=40, color='white', font="Arial-Bold", bg_color='black')
-        watermark = watermark.set_opacity(0.5).set_position(("center", 100)).set_duration(final_video.duration)
-        final_video = CompositeVideoClip([final_video, watermark])
-    except Exception as e:
-        print(f"Watermark skipped: {e}")
+        await page.goto("https://upsampler.com/free-video-generator-no-signup", wait_until="domcontentloaded", timeout=60000)
+        await asyncio.sleep(3)
 
-    # Optional Background Music agar 'bg.mp3' file di ho
-    bg_music_path = "bg.mp3" 
-    if os.path.exists(bg_music_path):
-        try:
-            bg_clip = AudioFileClip(bg_music_path).fx(afx.volumex, 0.08).fx(afx.audio_loop, duration=final_video.duration)
-            final_mixed_audio = CompositeAudioClip([final_video.audio, bg_clip])
-            final_video = final_video.set_audio(final_mixed_audio)
-        except Exception as e:
-            print(f"BGM error: {e}")
+        file_input = page.locator("input[type='file']").first
+        await file_input.set_input_files(img_path)
+        await asyncio.sleep(3)
 
-    print(f"💾 Exporting 9:16 Video... {FINAL_OUTPUT}")
-    final_video.write_videofile(FINAL_OUTPUT, fps=24, codec="libx264", audio_codec="aac", bitrate="5000k")
-    print("✅ VERTICAL MASTERPIECE READY!")
+        loc = page.locator("textarea, input[type='text']").first
+        if await loc.is_visible():
+            await loc.fill(motion_prompt)
 
-    # Telegram par final video bhej do
-    send_telegram_video(FINAL_OUTPUT, "🎬 Your 9:16 Vertical Story Video is Ready!")
+        generate_btn = page.get_by_role("button", name="Generate Video", exact=True)
+        if await generate_btn.is_visible():
+            await generate_btn.click()
+
+        video_element = page.locator("video:not([src*='_static'])").first
+        start_time = time.time()
+        video_ready = False
+
+        while time.time() - start_time < 300:
+            await asyncio.sleep(4)
+            if await video_element.count() > 0 and await video_element.is_visible():
+                video_ready = True
+                break
+
+        if video_ready:
+            await asyncio.sleep(3)
+            download_btn = page.locator("a:has-text('Download'), button:has-text('Download')").first
+            video_src = await video_element.get_attribute("src")
+            if await download_btn.is_visible():
+                async with page.expect_download() as download_info:
+                    await download_btn.click()
+                download = await download_info.value
+                await download.save_as(raw_video_path)
+            elif video_src:
+                v_data = requests.get(video_src).content
+                with open(raw_video_path, "wb") as f: f.write(v_data)
+        await browser.close()
+
+    # 3. MoviePy se Original Sound Mute karke Microsoft Voice aur Captions lagao
+    if os.path.exists(raw_video_path) and os.path.exists(voice_path):
+        audio_clip = AudioFileClip(voice_path)
+        duration = audio_clip.duration + 0.2
+
+        video_clip = VideoFileClip(raw_video_path).subclip(0, min(duration, VideoFileClip(raw_video_path).duration))
+        video_clip = video_clip.set_audio(audio_clip).resize(height=1920)
+
+        captions = create_dynamic_captions(vo_text, duration)
+        final_scene = CompositeVideoClip([video_clip] + captions).set_duration(duration)
+
+        final_scene.write_videofile(os.path.join(VIDEO_DIR, f"Scene_{machine_id}.mp4"), fps=24, codec="libx264", audio_codec="aac")
 
 if __name__ == "__main__":
     asyncio.run(main())
