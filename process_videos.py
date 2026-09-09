@@ -21,10 +21,11 @@ def main():
     clips = [VideoFileClip(v) for v in video_files]
     final_video = concatenate_videoclips(clips, method="compose")
 
-    # Background Music (Optional agar 'bg.mp3' ho)
     if os.path.exists("bg.mp3"):
-        bg = AudioFileClip("bg.mp3").volumex(0.08).audio_loop(duration=final_video.duration)
-        final_video = final_video.set_audio(CompositeAudioClip([final_video.audio, bg]))
+        try:
+            bg = AudioFileClip("bg.mp3").volumex(0.08).audio_loop(duration=final_video.duration)
+            final_video = final_video.set_audio(CompositeAudioClip([final_video.audio, bg]))
+        except Exception as e: print(f"BGM Error: {e}")
 
     final_video.write_videofile(FINAL_OUTPUT, fps=24, codec="libx264", audio_codec="aac")
     print("✅ FINAL 9:16 STORY VIDEO READY!")
