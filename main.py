@@ -1,7 +1,6 @@
 import os
 import sys
 import time
-import re
 from playwright.sync_api import sync_playwright
 import requests
 
@@ -45,12 +44,14 @@ def main():
         print("❌ Invalid machine_id")
         sys.exit(1)
 
-    # सिर्फ अपनी मशीन के नंबर वाला प्रॉम्प्ट उठाएगा
     line = lines[machine_id - 1]
-    prompt_text = line.split("|")[0].strip()
-    prompt_text = re.sub(r'^\d+[\.\-\)]?\s*', '', prompt_text) 
+    parts = line.split("|")
+    
+    # 🖼️ Index 2 से सिर्फ Image Prompt उठाएगा (कोई ऑडियो टेक्स्ट नहीं)
+    prompt_text = parts[2].strip() if len(parts) >= 3 else parts[0].strip()
+    prompt_text = prompt_text[:380] # BING CHARACTER SAFETY
 
-    print(f"🤖 Machine {machine_id} processing prompt: {prompt_text}")
+    print(f"🤖 Machine {machine_id} processing IMAGE prompt ({len(prompt_text)} chars): {prompt_text}")
 
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True, args=["--start-maximized"])
@@ -66,10 +67,11 @@ def main():
                 search_box = page.locator("textarea[name='q'], #sb_form_q, textarea, input[type='text']").first
             
             search_box.fill(prompt_text)
-            time.sleep(1)
+            time.sleep(2)
             
             generate_btn = page.locator("button:has-text('Generate'), button:has-text('Create'), #create_btn_div, #create_btn_c").first
-            generate_btn.click()
+            generate_btn.wait_for(state="visible", timeout=10000)
+            generate_btn.click(force=True)
             
             img_url = None
             for attempt in range(45):
@@ -93,13 +95,14 @@ def main():
                 else:
                     raise Exception("Download failed")
             else:
-                raise Exception("Image URL not found after generation (Possibly CAPTCHA blocked)")
+                raise Exception("Image URL not found after generation")
                 
         except Exception as e:
             print(f"⚠️ Error for Image {machine_id}: {e}")
             err_shot = os.path.join(SAVE_FOLDER, f"ERROR_Image_{machine_id}.png")
             page.screenshot(path=err_shot)
-            send_telegram_photo(err_shot, f"❌ Image #{machine_id} Failed")
+            send_telegram_photo(err_shot, f"❌ Image #{machine_id} Failed: {e}")
+            sys.exit(1)
         finally:
             browser.close()
 
