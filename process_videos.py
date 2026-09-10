@@ -70,13 +70,13 @@ def process_single_clip(input_path, output_path, index, total_clips, story_text)
                 f"[orig_a][tts_a]amix=inputs=2:duration=longest:weights=1 1[a_out]"
             )
             cmd = ["ffmpeg", "-y", "-i", input_path, "-i", audio_path, "-filter_complex", filter_complex,
-                   "-map", "[v_out]", "-map", "[a_out]", "-c:v", "libx264", "-crf", "16", "-preset", "fast", "-c:a", "aac", output_path]
+                   "-map", "[v_out]", "-map", "[a_out]", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-crf", "18", "-preset", "fast", "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", output_path]
         else:
             filter_complex = f"[0:v]setpts={v_pts_factor:.4f}*PTS,{base_filter}[v_out]"
             cmd = ["ffmpeg", "-y", "-i", input_path, "-i", audio_path, "-filter_complex", filter_complex,
-                   "-map", "[v_out]", "-map", "1:a", "-c:v", "libx264", "-crf", "16", "-preset", "fast", "-c:a", "aac", output_path]
+                   "-map", "[v_out]", "-map", "1:a", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-crf", "18", "-preset", "fast", "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", output_path]
     else:
-        cmd = ["ffmpeg", "-y", "-i", input_path, "-vf", base_filter, "-c:v", "libx264", "-crf", "16", "-preset", "fast", output_path]
+        cmd = ["ffmpeg", "-y", "-i", input_path, "-vf", base_filter, "-c:v", "libx264", "-pix_fmt", "yuv420p", "-crf", "18", "-preset", "fast", "-movflags", "+faststart", output_path]
     
     subprocess.run(cmd, check=True)
     return output_path
@@ -95,10 +95,10 @@ def merge_with_crossfade(clips):
 
         if v1_has_a and v2_has_a:
             filter_complex = f"[0:v][1:v]xfade=transition=fade:duration=0.8:offset={offset}[v_out]; [0:a][1:a]amix=inputs=2:duration=longest[a_out]"
-            cmd = ["ffmpeg", "-y", "-i", merged_video, "-i", next_video, "-filter_complex", filter_complex, "-map", "[v_out]", "-map", "[a_out]", "-c:v", "libx264", "-crf", "16", "-preset", "fast", "-c:a", "aac", temp_out]
+            cmd = ["ffmpeg", "-y", "-i", merged_video, "-i", next_video, "-filter_complex", filter_complex, "-map", "[v_out]", "-map", "[a_out]", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-crf", "18", "-preset", "fast", "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", temp_out]
         else:
             filter_complex = f"[0:v][1:v]xfade=transition=fade:duration=0.8:offset={offset}[v_out]"
-            cmd = ["ffmpeg", "-y", "-i", merged_video, "-i", next_video, "-filter_complex", filter_complex, "-map", "[v_out]", "-c:v", "libx264", "-crf", "16", "-preset", "fast", temp_out]
+            cmd = ["ffmpeg", "-y", "-i", merged_video, "-i", next_video, "-filter_complex", filter_complex, "-map", "[v_out]", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-crf", "18", "-preset", "fast", "-movflags", "+faststart", temp_out]
             
         subprocess.run(cmd, check=True)
         merged_video = temp_out
