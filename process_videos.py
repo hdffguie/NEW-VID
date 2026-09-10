@@ -1,10 +1,12 @@
 import os
 import subprocess
 import re
+import shutil
 
 INPUT_DIR = "all_downloaded_videos"
 OUTPUT_DIR = "final_output"
 PROMPTS_FILE = "prompts.txt"
+BGM_FILE = "bgm.mp3"  # अगर ये फाइल होगी, तो वीडियो में अपने आप लग जाएगी
 
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
@@ -17,24 +19,50 @@ def read_story_prompts():
         return story_lines
     with open(PROMPTS_FILE, "r", encoding="utf-8") as f:
         lines = f.readlines()
-    
     for idx, line in enumerate(lines, start=1):
         parts = line.split("|")
         if len(parts) >= 3:
-            # तीसरा हिस्सा हमारी कहानी (Narration) है
             story_lines[idx] = parts[2].strip()
         else:
             story_lines[idx] = ""
     return story_lines
 
+def get_duration(file_path):
+    try:
+        cmd = ["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", file_path]
+        return float(subprocess.check_output(cmd).decode().strip())
+    except Exception:
+        return 4.0
+
+def has_audio(file_path):
+    try:
+        cmd = ["ffprobe", "-v", "error", "-select_streams", "a", "-show_entries", "stream=codec_name", "-of", "default=noprint_wrappers=1:nokey=1", file_path]
+        output = subprocess.check_output(cmd).decode().strip()
+        return len(output) > 0
+    except Exception:
+        return False
+
+def get_atempo_chain(ratio):
+    # FFmpeg में ऑडियो स्पीड बदलने की लिमिट होती है, ये फंक्शन उसे सही करता है
+    filters = []
+    r = ratio
+    while r < 0.5:
+        filters.append("atempo=0.5")
+        r /= 0.5
+    while r > 2.0:
+        filters.append("atempo=2.0")
+        r /= 2.0
+    filters.append(f"atempo={r:.4f}")
+    return ",".join(filters)
+
 def generate_tts(text, index):
     audio_path = os.path.join(OUTPUT_DIR, f"audio_{index}.mp3")
-    # Microsoft TTS (hi-IN-SwaraNeural लड़की की आवाज़ है)
-    # --rate=+15% से आवाज़ थोड़ी फ़ास्ट हो जाएगी ताकि 4-5 सेकंड में फिट आ जाए
+    # MadhurNeural = लड़के की आवाज़ | pitch=-15Hz = भारी आवाज़ | rate=+20% = थोड़ा फ़ास्ट
     cmd = [
         "edge-tts", 
-        "--voice", "hi-IN-SwaraNeural", 
-        "--rate=+15%", 
+        "--voice", "hi-IN-MadhurNeural", 
+        "--rate=+20%", 
+        "--pitch=-15Hz",
         "--text", text, 
         "--write-media", audio_path
     ]
@@ -45,35 +73,47 @@ def generate_tts(text, index):
         print(f"⚠️ TTS Error for video {index}: {e}")
         return None
 
-def polish_and_upscale_clip(input_path, output_path, index, story_text):
-    audio_path = None
-    if story_text:
-        audio_path = generate_tts(story_text, index)
+def polish_and_sync_clip(input_path, output_path, index, story_text):
+    audio_path = generate_tts(story_text, index) if story_text else None
 
     if audio_path and os.path.exists(audio_path):
-        # वीडियो और नई TTS ऑडियो को मिलाना (सिर्फ आवाज़, कोई टेक्स्ट नहीं)
-        cmd = [
-            "ffmpeg", "-y", "-i", input_path, "-i", audio_path,
-            "-vf", "scale=1920:1080:flags=lanczos,unsharp=5:5:1.0:5:5:0.0,fade=t=in:st=0:d=0.3,fade=t=out:st=4.7:d=0.3",
-            "-c:v", "libx264", "-crf", "18", "-preset", "slow", 
-            "-c:a", "aac", "-map", "0:v:0", "-map", "1:a:0", "-shortest",
-            output_path
-        ]
+        v_dur = get_duration(input_path)
+        a_dur = get_duration(audio_path)
+        
+        if v_dur == 0: v_dur = 4.0
+        if a_dur == 0: a_dur = 4.0
+
+        # वीडियो को आवाज़ के हिसाब से छोटा या बड़ा करना
+        v_pts_factor = a_dur / v_dur 
+        a_tempo_factor = v_dur / a_dur 
+        
+        atempo_str = get_atempo_chain(a_tempo_factor)
+        
+        if has_audio(input_path):
+            # ओरिजिनल साउंड (पानी/चलने की आवाज़) को TTS के साथ मिक्स करना
+            filter_complex = (
+                f"[0:v]setpts={v_pts_factor:.4f}*PTS,scale=1920:1080:flags=lanczos,unsharp=5:5:1.0:5:5:0.0[v_scaled]; "
+                f"[0:a]{atempo_str},volume=1.2[orig_a]; "
+                f"[1:a]volume=1.8[tts_a]; "
+                f"[orig_a][tts_a]amix=inputs=2:duration=longest:weights=1 1[mixed_a]; "
+                f"[mixed_a]volume=1.5[final_a]"
+            )
+            cmd = ["ffmpeg", "-y", "-i", input_path, "-i", audio_path, "-filter_complex", filter_complex, 
+                   "-map", "[v_scaled]", "-map", "[final_a]", "-c:v", "libx264", "-crf", "18", "-preset", "slow", "-c:a", "aac", output_path]
+        else:
+            # अगर ओरिजिनल आवाज़ नहीं है तो सिर्फ TTS यूज़ करो
+            filter_complex = f"[0:v]setpts={v_pts_factor:.4f}*PTS,scale=1920:1080:flags=lanczos,unsharp=5:5:1.0:5:5:0.0[v_scaled]"
+            cmd = ["ffmpeg", "-y", "-i", input_path, "-i", audio_path, "-filter_complex", filter_complex, 
+                   "-map", "[v_scaled]", "-map", "1:a", "-c:v", "libx264", "-crf", "18", "-preset", "slow", "-c:a", "aac", output_path]
     else:
-        # अगर कोई ऑडियो नहीं है, तो सिर्फ वीडियो प्रोसेस करें
-        cmd = [
-            "ffmpeg", "-y", "-i", input_path,
-            "-vf", "scale=1920:1080:flags=lanczos,unsharp=5:5:1.0:5:5:0.0,fade=t=in:st=0:d=0.3,fade=t=out:st=4.7:d=0.3",
-            "-c:v", "libx264", "-crf", "18", "-preset", "slow", 
-            output_path
-        ]
+        cmd = ["ffmpeg", "-y", "-i", input_path, "-vf", "scale=1920:1080:flags=lanczos,unsharp=5:5:1.0:5:5:0.0", 
+               "-c:v", "libx264", "-crf", "18", "-preset", "slow", output_path]
 
     try:
         subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        print(f"✨ Polished & Audio Added: {os.path.basename(input_path)}")
+        print(f"✨ Synced & Polished: {os.path.basename(input_path)}")
     except subprocess.CalledProcessError as e:
-        print(f"⚠️ Error processing clip {index}: {e.stderr.decode()}")
-        import shutil
+        print(f"⚠️ Error processing clip {index}")
         shutil.copy(input_path, output_path)
 
 def main():
@@ -82,47 +122,42 @@ def main():
         return
 
     story_lines = read_story_prompts()
-    video_files = []
-    
-    for root, dirs, files in os.walk(INPUT_DIR):
-        for file in files:
-            if file.endswith(".mp4"):
-                video_files.append(os.path.join(root, file))
+    video_files = [os.path.join(root, f) for root, dirs, files in os.walk(INPUT_DIR) for f in files if f.endswith(".mp4")]
 
-    if not video_files:
-        print("❌ No video files found!")
-        return
-
+    if not video_files: return
     video_files.sort(key=lambda x: natural_sort_key(os.path.basename(x)))
 
     polished_files = []
-    print(f"Found {len(video_files)} video(s). Adding Story TTS and upscaling...")
-    
     for idx, v_path in enumerate(video_files, start=1):
         out_path = os.path.join(OUTPUT_DIR, f"processed_{idx}.mp4")
-        story_text = story_lines.get(idx, "")
-        polish_and_upscale_clip(v_path, out_path, idx, story_text)
+        polish_and_sync_clip(v_path, out_path, idx, story_lines.get(idx, ""))
         polished_files.append(out_path)
 
-    # सारी क्लिप्स को आपस में जोड़ना
-    print("🎬 Merging all clips into a cinematic Full Movie...")
+    # वीडियो को जोड़ना
     concat_list_path = os.path.join(OUTPUT_DIR, "concat_list.txt")
-    
     with open(concat_list_path, "w", encoding="utf-8") as f:
         for p_file in polished_files:
             f.write(f"file '{os.path.basename(p_file)}'\n")
 
-    full_movie_path = os.path.join(OUTPUT_DIR, "Full_Cinematic_Story.mp4")
-    merge_cmd = [
-        "ffmpeg", "-y", "-f", "concat", "-safe", "0",
-        "-i", concat_list_path, "-c", "copy", full_movie_path
-    ]
-    
-    try:
-        subprocess.run(merge_cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        print("✅ Full Cinematic Story Movie successfully created with Voiceover!")
-    except subprocess.CalledProcessError as e:
-        print(f"⚠️ Merge error: {e.stderr.decode()}")
+    temp_movie_path = os.path.join(OUTPUT_DIR, "Temp_Movie.mp4")
+    subprocess.run(["ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", concat_list_path, "-c", "copy", temp_movie_path], check=True)
+
+    final_movie_path = os.path.join(OUTPUT_DIR, "Full_Cinematic_Story.mp4")
+
+    # BGM अगर मौजूद है तो उसे जोड़ना
+    if os.path.exists(BGM_FILE):
+        print("🎵 Adding Background Music...")
+        bgm_cmd = [
+            "ffmpeg", "-y", "-i", temp_movie_path, "-stream_loop", "-1", "-i", BGM_FILE,
+            "-filter_complex", "[1:a]volume=0.15[bgm]; [0:a][bgm]amix=inputs=2:duration=first[mixed_a]; [mixed_a]volume=1.5[final_a]",
+            "-map", "0:v", "-map", "[final_a]", "-c:v", "copy", "-c:a", "aac", "-shortest", final_movie_path
+        ]
+        subprocess.run(bgm_cmd, check=True)
+        os.remove(temp_movie_path)
+    else:
+        os.rename(temp_movie_path, final_movie_path)
+        
+    print("✅ Full Cinematic Story Movie Ready!")
 
 if __name__ == "__main__":
     main()
