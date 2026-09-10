@@ -1,22 +1,30 @@
 import os
 import sys
 import math
-from duckduckgo_search import DDGS
+import google.generativeai as genai
 
 STORY_FILE = "story.txt"
 PROMPT_FILE = "prompts.txt"
 METADATA_FILE = "metadata.txt"
 
-# GitHub Action से टाइम (सेकंड्स) लेना, डिफ़ॉल्ट 60 सेकंड
+# GitHub Action से डेटा लेना
 VIDEO_DURATION = int(os.getenv("VIDEO_DURATION", 60))
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
 def generate_ai_script(topic):
-    # Upsampler 5 सेकंड का वीडियो बनाता है, तो लाइनें (Scenes) कैलकुलेट करें
+    if not GEMINI_API_KEY:
+        print("❌ GEMINI_API_KEY नहीं मिली! कृपया GitHub Secrets में ऐड करें।")
+        sys.exit(1)
+
+    # Google Gemini AI सेटअप
+    genai.configure(api_key=GEMINI_API_KEY)
+    model = genai.GenerativeModel('gemini-1.5-flash')
+
     target_scenes = max(3, math.ceil(VIDEO_DURATION / 5))
     
     print(f"⏱️ Video Duration: {VIDEO_DURATION} Seconds")
     print(f"🎬 Target Scenes: {target_scenes} Scenes (5 sec each)")
-    print(f"🤖 DuckDuckGo AI (GPT-4o) कहानी और प्रॉम्प्ट्स सोच रहा है...\nTopic: '{topic}'")
+    print(f"🚀 Google Gemini AI कहानी और प्रॉम्प्ट्स सोच रहा है...\nTopic: '{topic}'")
     
     master_prompt = f"""You are an elite Hollywood scriptwriter, psychological hook expert, and Midjourney Prompt Engineer.
     
@@ -34,12 +42,10 @@ def generate_ai_script(topic):
     """
     
     try:
-        # यहाँ हम फ्री GPT-4o-mini का इस्तेमाल कर रहे हैं
-        response = DDGS().chat(master_prompt, model='gpt-4o-mini')
+        response = model.generate_content(master_prompt)
+        output = response.text.replace("```text", "").replace("```", "").strip()
         
-        output = response.replace("```text", "").replace("```", "").strip()
         valid_lines = [line.strip() for line in output.split('\n') if '|' in line]
-        
         final_lines = valid_lines[:target_scenes]
         
         if not final_lines:
@@ -49,7 +55,7 @@ def generate_ai_script(topic):
         return "\n".join(final_lines)
 
     except Exception as e:
-        print(f"❌ AI Generation Failed: {e}")
+        print(f"❌ Gemini AI Error: {e}")
         return None
 
 def process_stories():
@@ -71,10 +77,10 @@ def process_stories():
     ai_output = generate_ai_script(current_topic)
     
     if not ai_output:
-        print("⚠️ AI स्क्रिप्ट नहीं बना पाया। कृपया कोड को दोबारा रन करें।")
+        print("⚠️ AI स्क्रिप्ट नहीं बना पाया।")
         sys.exit(1)
 
-    print("\n✅ AI Generated Script & Prompts:\n" + ai_output + "\n")
+    print("\n✅ Gemini AI Generated Script & Prompts:\n" + ai_output + "\n")
 
     with open(PROMPT_FILE, "w", encoding="utf-8") as f:
         f.write(ai_output + "\n")
