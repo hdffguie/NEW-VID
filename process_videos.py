@@ -21,7 +21,6 @@ def read_story_prompts():
     for idx, line in enumerate(lines, start=1):
         parts = line.split("|")
         if len(parts) >= 3: story_lines[idx] = parts[2].strip()
-        else: story_lines[idx] = ""
     return story_lines
 
 def get_duration(file_path):
@@ -29,25 +28,6 @@ def get_duration(file_path):
         cmd = ["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", file_path]
         return float(subprocess.check_output(cmd).decode().strip())
     except Exception: return 4.0
-
-def has_audio(file_path):
-    try:
-        cmd = ["ffprobe", "-v", "error", "-select_streams", "a", "-show_entries", "stream=codec_name", "-of", "default=noprint_wrappers=1:nokey=1", file_path]
-        output = subprocess.check_output(cmd).decode().strip()
-        return len(output) > 0
-    except Exception: return False
-
-def get_atempo_chain(ratio):
-    filters = []
-    r = ratio
-    while r < 0.5:
-        filters.append("atempo=0.5")
-        r /= 0.5
-    while r > 2.0:
-        filters.append("atempo=2.0")
-        r /= 2.0
-    filters.append(f"atempo={r:.4f}")
-    return ",".join(filters)
 
 def generate_tts(text, index):
     audio_path = os.path.join(OUTPUT_DIR, f"audio_{index}.mp3")
@@ -61,47 +41,34 @@ def generate_tts(text, index):
     try:
         subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         return audio_path
-    except Exception as e:
-        return None
+    except Exception: return None
 
 def polish_and_sync_clip(input_path, output_path, index, story_text):
     audio_path = generate_tts(story_text, index) if story_text else None
 
-    # यहाँ 4K Vertical (2160x3840) और तगड़ी शार्पनेस (unsharp) लगाई है
-    HQ_SCALE = "scale=2160:3840:flags=lanczos,unsharp=5:5:1.5:5:5:0.0"
-
     if audio_path and os.path.exists(audio_path):
-        v_dur = get_duration(input_path)
-        a_dur = get_duration(audio_path)
-        
-        if v_dur == 0: v_dur = 4.0
-        if a_dur == 0: a_dur = 4.0
+        v_dur = get_duration(input_path) or 4.0
+        a_dur = get_duration(audio_path) or 4.0
 
         v_pts_factor = a_dur / v_dur 
-        a_tempo_factor = v_dur / a_dur 
-        atempo_str = get_atempo_chain(a_tempo_factor)
-        
-        if has_audio(input_path):
-            filter_complex = (
-                f"[0:v]setpts={v_pts_factor:.4f}*PTS,{HQ_SCALE}[v_scaled]; "
-                f"[0:a]{atempo_str},volume=1.2[orig_a]; "
-                f"[1:a]volume=1.8[tts_a]; "
-                f"[orig_a][tts_a]amix=inputs=2:duration=longest:weights=1 1[mixed_a]; "
-                f"[mixed_a]volume=1.5[final_a]"
-            )
-            cmd = ["ffmpeg", "-y", "-i", input_path, "-i", audio_path, "-filter_complex", filter_complex, 
-                   "-map", "[v_scaled]", "-map", "[final_a]", "-c:v", "libx264", "-crf", "16", "-preset", "slow", "-c:a", "aac", output_path]
-        else:
-            filter_complex = f"[0:v]setpts={v_pts_factor:.4f}*PTS,{HQ_SCALE}[v_scaled]"
-            cmd = ["ffmpeg", "-y", "-i", input_path, "-i", audio_path, "-filter_complex", filter_complex, 
-                   "-map", "[v_scaled]", "-map", "1:a", "-c:v", "libx264", "-crf", "16", "-preset", "slow", "-c:a", "aac", output_path]
+        fade_out_start = a_dur - 0.4  # वीडियो खत्म होने से 0.4 सेकंड पहले फेड-आउट शुरू होगा
+        if fade_out_start < 0: fade_out_start = 0
+
+        # 4K Vertical + Fade in/out
+        HQ_SCALE = f"scale=2160:3840:flags=lanczos,unsharp=5:5:1.5:5:5:0.0,fade=t=in:st=0:d=0.3,fade=t=out:st={fade_out_start:.2f}:d=0.4"
+
+        # ध्यान दें: यहाँ ओरिजिनल वीडियो का ऑडियो म्यूट कर दिया गया है (सिर्फ 1:a मैप किया है)
+        filter_complex = f"[0:v]setpts={v_pts_factor:.4f}*PTS,{HQ_SCALE}[v_scaled]"
+        cmd = ["ffmpeg", "-y", "-i", input_path, "-i", audio_path, "-filter_complex", filter_complex, 
+               "-map", "[v_scaled]", "-map", "1:a", "-c:v", "libx264", "-crf", "16", "-preset", "slow", "-c:a", "aac", output_path]
     else:
+        HQ_SCALE = "scale=2160:3840:flags=lanczos,unsharp=5:5:1.5:5:5:0.0,fade=t=in:st=0:d=0.3,fade=t=out:st=3.6:d=0.4"
         cmd = ["ffmpeg", "-y", "-i", input_path, "-vf", HQ_SCALE, 
                "-c:v", "libx264", "-crf", "16", "-preset", "slow", output_path]
 
     try:
         subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        print(f"✨ Synced & Polished 4K: {os.path.basename(input_path)}")
+        print(f"✨ Synced, Muted Original, Faded & Polished 4K: {os.path.basename(input_path)}")
     except subprocess.CalledProcessError:
         shutil.copy(input_path, output_path)
 
@@ -126,13 +93,12 @@ def main():
 
     temp_movie_path = os.path.join(OUTPUT_DIR, "Temp_Movie.mp4")
     subprocess.run(["ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", concat_list_path, "-c", "copy", temp_movie_path], check=True)
-
     final_movie_path = os.path.join(OUTPUT_DIR, "Full_Cinematic_Story.mp4")
 
     if os.path.exists(BGM_FILE):
         bgm_cmd = [
             "ffmpeg", "-y", "-i", temp_movie_path, "-stream_loop", "-1", "-i", BGM_FILE,
-            "-filter_complex", "[1:a]volume=0.15[bgm]; [0:a][bgm]amix=inputs=2:duration=first[mixed_a]; [mixed_a]volume=1.5[final_a]",
+            "-filter_complex", "[1:a]volume=0.10[bgm]; [0:a][bgm]amix=inputs=2:duration=first[mixed_a]; [mixed_a]volume=1.5[final_a]",
             "-map", "0:v", "-map", "[final_a]", "-c:v", "copy", "-c:a", "aac", "-shortest", final_movie_path
         ]
         subprocess.run(bgm_cmd, check=True)
