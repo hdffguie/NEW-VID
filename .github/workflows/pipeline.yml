@@ -2,7 +2,6 @@ name: Automated Image and Video Pipeline
 
 on:
   schedule:
-    # ⏰ दिन में 2 बार (सुबह 8:30 AM IST और शाम 6:30 PM IST) ऑटोमेटिक चलेगा
     - cron: '0 3,13 * * *'
   workflow_dispatch:
     inputs:
@@ -15,22 +14,22 @@ on:
         - '9:16'
         - '16:9'
 
+permissions:
+  contents: write
+
 jobs:
   prepare-prompts:
     runs-on: ubuntu-latest
-    outputs:
-      matrix: ${{ steps.set-matrix.outputs.matrix }}
     steps:
     - uses: actions/checkout@v4
       with:
-        token: ${{ secrets.GITHUB_TOKEN }}
+        persist-credentials: true
     - uses: actions/setup-python@v5
       with:
         python-version: '3.10'
     - run: |
         pip install deep-translator
         python auto_prompt.py
-    # 🔄 Process की गई कहानी डिलीट होने के बाद story.txt को GitHub में Auto-Commit कर देगा
     - name: Commit and Push Updated story.txt
       run: |
         git config user.name "github-actions[bot]"
@@ -50,6 +49,8 @@ jobs:
         if [ "$count" -eq 0 ]; then exit 1; fi
         matrix_json=$(python3 -c "import json; print(json.dumps(list(range(1, $count + 1))))")
         echo "matrix=$matrix_json" >> $GITHUB_OUTPUT
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
 
   generate-images:
     needs: prepare-prompts
