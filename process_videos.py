@@ -44,7 +44,7 @@ def get_random_face_clip():
 def generate_tts_with_vtt(text, index):
     audio_path = os.path.join(OUTPUT_DIR, f"audio_{index}.mp3")
     vtt_path = os.path.join(OUTPUT_DIR, f"audio_{index}.vtt")
-    cmd = ["edge-tts", "--voice", "hi-IN-MadhurNeural", "--rate=+2%", "--pitch=+0Hz", "--text", text, "--write-media", audio_path, "--write-subtitles", vtt_path]
+    cmd = ["edge-tts", "--voice", "en-US-AndrewMultilingualNeural", "--rate=+2%", "--pitch=+0Hz", "--text", text, "--write-media", audio_path, "--write-subtitles", vtt_path]
     subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     return audio_path, vtt_path
 
