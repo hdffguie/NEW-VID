@@ -1,8 +1,8 @@
-import os
 import sys
-import time
-from playwright.sync_api import sync_playwright
+import os
+import asyncio
 import requests
+from playwright.async_api import async_playwright
 
 BOT_TOKEN = os.getenv("BOT_TOKEN", "")
 CHAT_ID = os.getenv("CHAT_ID", "")
@@ -17,94 +17,88 @@ def send_telegram_photo(photo_path, caption=""):
         if os.path.exists(photo_path):
             with open(photo_path, "rb") as file:
                 requests.post(url, data={"chat_id": CHAT_ID, "caption": caption}, files={"photo": file}, timeout=15)
-    except Exception: pass
+    except Exception as e:
+        print(f"Telegram photo error: {e}")
 
-def download_image(url, filename):
-    try:
-        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
-        response = requests.get(url, headers=headers, stream=True, timeout=30)
-        if response.status_code == 200:
-            with open(filename, 'wb') as f:
-                for chunk in response.iter_content(1024): f.write(chunk)
-            return True
-    except: return False
+def read_prompts():
+    if not os.path.exists(PROMPT_FILE):
+        return {}
+    prompts = {}
+    with open(PROMPT_FILE, "r", encoding="utf-8") as f:
+        for idx, line in enumerate(f.readlines(), 1):
+            parts = line.split("|")
+            if len(parts) >= 3:
+                prompts[idx] = parts[2].strip()
+            elif len(parts) >= 1:
+                prompts[idx] = parts[0].strip()
+    return prompts
+
+async def generate_single_image(machine_id, prompt_text, max_retries=4):
+    out_img_path = os.path.join(SAVE_FOLDER, f"Generated_Image_{machine_id}.jpg")
+    
+    for attempt in range(1, max_retries + 1):
+        print(f"🔄 Attempt {attempt}/{max_retries} for Image #{machine_id}...")
+        
+        async with async_playwright() as p:
+            browser = await p.chromium.launch(headless=True)
+            context = await browser.new_context(viewport={'width': 1280, 'height': 720})
+            page = await context.new_page()
+            
+            try:
+                # Bing / Image Creator Site URL
+                await page.goto("https://www.bing.com/images/create", wait_until="domcontentloaded", timeout=60000)
+                await asyncio.sleep(3)
+
+                # Search/Prompt input fill
+                prompt_input = page.locator("input[name='q'], textarea[name='q']").first
+                if await prompt_input.is_visible(timeout=5000):
+                    await prompt_input.fill(prompt_text)
+                    await asyncio.sleep(1)
+
+                create_btn = page.locator("#create_btn_div, button:has-text('Create'), a:has-text('Create')").first
+                if await create_btn.is_visible(timeout=5000):
+                    await create_btn.click()
+                else:
+                    await prompt_input.press("Enter")
+
+                print(f"⏳ Waiting for image generation on Machine {machine_id}...")
+                
+                # Image element waiting
+                img_element = page.locator("div.img_pt img, m_ic_img img, img.mimg").first
+                await img_element.wait_for(state="visible", timeout=90000)
+                
+                src = await img_element.get_attribute("src")
+                if not src or not src.startswith("http"):
+                    raise Exception("Image URL invalid or not found")
+
+                img_data = requests.get(src, timeout=30).content
+                with open(out_img_path, "wb") as f:
+                    f.write(img_data)
+
+                print(f"✅ Image #{machine_id} generated successfully on Attempt {attempt}!")
+                send_telegram_photo(out_img_path, f"🖼️ Image #{machine_id} Ready!")
+                
+                await browser.close()
+                return True
+
+            except Exception as e:
+                print(f"⚠️ Attempt {attempt} Failed for Image {machine_id}: {e}")
+                await browser.close() # Clean Cut Chrome / Close Browser
+                await asyncio.sleep(5) # Fresh start gap
+                
+    print(f"❌ All {max_retries} attempts failed for Image #{machine_id}.")
     return False
 
-def main():
+async def main():
     machine_id = int(sys.argv[1]) if len(sys.argv) > 1 else 1
-
-    if not os.path.exists(PROMPT_FILE):
-        print("❌ prompts.txt not found!")
-        sys.exit(1)
-
-    with open(PROMPT_FILE, "r", encoding="utf-8") as f:
-        lines = [line.strip() for line in f if line.strip()]
-
-    if machine_id > len(lines) or machine_id < 1:
-        print("❌ Invalid machine_id")
-        sys.exit(1)
-
-    line = lines[machine_id - 1]
-    parts = line.split("|")
+    prompts = read_prompts()
     
-    # 🖼️ Index 2 से सिर्फ Image Prompt उठाएगा (कोई ऑडियो टेक्स्ट नहीं)
-    prompt_text = parts[2].strip() if len(parts) >= 3 else parts[0].strip()
-    prompt_text = prompt_text[:380] # BING CHARACTER SAFETY
-
+    prompt_text = prompts.get(machine_id, "3D Pixar animation style, cinematic lighting, 8k resolution")
     print(f"🤖 Machine {machine_id} processing IMAGE prompt ({len(prompt_text)} chars): {prompt_text}")
 
-    with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True, args=["--start-maximized"])
-        context = browser.new_context(viewport={'width': 1280, 'height': 720})
-        page = context.new_page()
-        
-        try:
-            page.goto("https://www.bing.com/images/create", timeout=60000)
-            time.sleep(3)
-            
-            search_box = page.get_by_placeholder("Describe the image you want to create")
-            if not search_box.is_visible():
-                search_box = page.locator("textarea[name='q'], #sb_form_q, textarea, input[type='text']").first
-            
-            search_box.fill(prompt_text)
-            time.sleep(2)
-            
-            generate_btn = page.locator("button:has-text('Generate'), button:has-text('Create'), #create_btn_div, #create_btn_c").first
-            generate_btn.wait_for(state="visible", timeout=10000)
-            generate_btn.click(force=True)
-            
-            img_url = None
-            for attempt in range(45):
-                time.sleep(2)
-                all_images = page.evaluate("""() => {
-                    const imgs = Array.from(document.querySelectorAll('img'));
-                    return imgs.map(img => img.src).filter(src => src && (
-                        src.includes('th?id=') || src.includes('OIG') || src.includes('bing.net') || src.includes('tse')
-                    ));
-                }""")
-                for src in all_images:
-                    if "logo" not in src.lower() and "icon" not in src.lower():
-                        img_url = src
-                        break
-                if img_url: break
-            
-            if img_url:
-                filepath = os.path.join(SAVE_FOLDER, f"Generated_Image_{machine_id}.jpg")
-                if download_image(img_url, filepath):
-                    print(f"✅ Success: Image {machine_id}")
-                else:
-                    raise Exception("Download failed")
-            else:
-                raise Exception("Image URL not found after generation")
-                
-        except Exception as e:
-            print(f"⚠️ Error for Image {machine_id}: {e}")
-            err_shot = os.path.join(SAVE_FOLDER, f"ERROR_Image_{machine_id}.png")
-            page.screenshot(path=err_shot)
-            send_telegram_photo(err_shot, f"❌ Image #{machine_id} Failed: {e}")
-            sys.exit(1)
-        finally:
-            browser.close()
+    success = await generate_single_image(machine_id, prompt_text, max_retries=4)
+    if not success:
+        sys.exit(1)
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
