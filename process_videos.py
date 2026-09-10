@@ -4,7 +4,7 @@ import re
 
 INPUT_DIR = "all_downloaded_videos"
 OUTPUT_DIR = "final_output"
-WATERMARK_TEXT = "YOUR CHANNEL NAME" 
+WATERMARK_TEXT = "YOUR CHANNEL NAME" # यहाँ अपने चैनल का नाम डाल लें
 ASPECT_RATIO = os.getenv("ASPECT_RATIO", "9:16")
 
 os.makedirs(OUTPUT_DIR, exist_ok=True)
@@ -28,7 +28,8 @@ def has_audio_stream(file_path):
 
 def generate_tts(text, index):
     audio_path = os.path.join(OUTPUT_DIR, f"audio_{index}.mp3")
-    cmd = ["edge-tts", "--voice", "hi-IN-SwaraNeural", "--rate=+6%", "--pitch=+10Hz", "--text", text, "--write-media", audio_path]
+    # FIX 1: यहाँ 'hi-IN-MadhurNeural' (लड़के) की आवाज़ सेट कर दी है
+    cmd = ["edge-tts", "--voice", "hi-IN-MadhurNeural", "--rate=+4%", "--pitch=-2Hz", "--text", text, "--write-media", audio_path]
     subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     return audio_path
 
@@ -94,7 +95,8 @@ def merge_with_crossfade(clips):
         v2_has_a = has_audio_stream(next_video)
 
         if v1_has_a and v2_has_a:
-            filter_complex = f"[0:v][1:v]xfade=transition=fade:duration=0.8:offset={offset}[v_out]; [0:a][1:a]amix=inputs=2:duration=longest[a_out]"
+            # FIX 2: amix की जगह acrossfade का यूज़ किया है, जिससे आवाज़ें एक के ऊपर एक नहीं चढ़ेंगी
+            filter_complex = f"[0:v][1:v]xfade=transition=fade:duration=0.8:offset={offset}[v_out]; [0:a][1:a]acrossfade=d=0.8[a_out]"
             cmd = ["ffmpeg", "-y", "-i", merged_video, "-i", next_video, "-filter_complex", filter_complex, "-map", "[v_out]", "-map", "[a_out]", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-crf", "18", "-preset", "fast", "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", temp_out]
         else:
             filter_complex = f"[0:v][1:v]xfade=transition=fade:duration=0.8:offset={offset}[v_out]"
