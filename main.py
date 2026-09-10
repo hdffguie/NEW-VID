@@ -12,14 +12,24 @@ PROMPT_FILE = "prompts.txt"
 os.makedirs(SAVE_FOLDER, exist_ok=True)
 
 def send_telegram_photo(photo_path, caption=""):
-    if not BOT_TOKEN or not CHAT_ID: return
+    print(f"📡 Sending photo to Telegram... (Token Present: {bool(BOT_TOKEN)}, Chat ID Present: {bool(CHAT_ID)})")
+    if not BOT_TOKEN or not CHAT_ID:
+        print("❌ Telegram Error: BOT_TOKEN or CHAT_ID missing in environment variables!")
+        return
+        
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendPhoto"
     try:
         if os.path.exists(photo_path):
             with open(photo_path, "rb") as file:
-                requests.post(url, data={"chat_id": CHAT_ID, "caption": caption}, files={"photo": file}, timeout=15)
+                res = requests.post(url, data={"chat_id": CHAT_ID, "caption": caption}, files={"photo": file}, timeout=15)
+                if res.status_code == 200:
+                    print("✅ Telegram photo sent successfully!")
+                else:
+                    print(f"❌ Telegram API Failure: {res.status_code} - {res.text}")
+        else:
+            print(f"❌ Photo path not found: {photo_path}")
     except Exception as e:
-        print(f"Telegram photo error: {e}")
+        print(f"❌ Telegram Exception: {e}")
 
 def read_prompts():
     if not os.path.exists(PROMPT_FILE):
@@ -35,7 +45,6 @@ def read_prompts():
     return prompts
 
 async def capture_and_send_screenshot(page, machine_id, step_label):
-    """हर 5 सेकंड में स्क्रीनशॉट लेने और टेलीग्राम पर भेजने का फ़ंक्शन"""
     shot_path = os.path.join(SAVE_FOLDER, f"live_status_m{machine_id}.png")
     try:
         await page.screenshot(path=shot_path)
@@ -80,13 +89,12 @@ async def generate_single_image(machine_id, prompt_text, max_retries=3):
 
                 print(f"⏳ Live monitoring started for Machine {machine_id}...")
                 
-                # 4. हर 5 सेकंड में स्क्रीनशॉट और इमेज चेक करने का लूप
+                # 4. Screenshot Loop
                 src = None
                 for second in range(5, 95, 5):
                     await asyncio.sleep(5)
                     await capture_and_send_screenshot(page, machine_id, f"Generating... ({second}s passed)")
                     
-                    # इमेज एलिमेंट चेक करें
                     img_element = page.locator("div.m_ic_img img, img[src*='th?id='], img[src*='bing.net'], div[class*='image'] img").first
                     if await img_element.is_visible():
                         src = await img_element.get_attribute("src")
@@ -97,7 +105,6 @@ async def generate_single_image(machine_id, prompt_text, max_retries=3):
                 if not src:
                     raise Exception("Image not ready within time limit")
 
-                # Image Download Logic
                 img_data = requests.get(src, timeout=30).content
                 with open(out_img_path, "wb") as f:
                     f.write(img_data)
