@@ -40,12 +40,12 @@ def generate_ai_script(topic):
     try:
         client = genai.Client(api_key=GEMINI_API_KEY)
         
-        # 🛡️ AUTO-FALLBACK SYSTEM: जो मॉडल काम करेगा, यह उसे खुद ढूंढ लेगा!
+        # सबसे पहले gemini-3.6-flash (जो Google ने सजेस्ट किया था)
         available_models = [
-            'gemini-1.5-flash', 
-            'gemini-pro', 
-            'gemini-1.0-pro', 
-            'gemini-2.5-flash'
+            'gemini-3.6-flash',
+            'gemini-1.5-flash',
+            'gemini-2.0-flash',
+            'gemini-pro'
         ]
         
         response = None
@@ -57,12 +57,13 @@ def generate_ai_script(topic):
                     contents=master_prompt
                 )
                 print(f"✅ Success! Generated script using: {model_name}")
-                break  # जैसे ही सक्सेस मिलेगा, यह लूप से बाहर आ जाएगा
+                break  # सक्सेस मिलते ही लूप बंद
             except Exception as e:
-                print(f"⚠️ {model_name} unavailable. Trying next...")
+                # यह लाइन हमें बताएगी कि असल में एरर क्या आ रहा है
+                print(f"⚠️ {model_name} failed. Reason: {e}")
 
         if not response:
-            print("❌ सभी AI मॉडल्स फेल हो गए। कृपया अपनी API Key चेक करें।")
+            print("❌ सभी AI मॉडल्स फेल हो गए। कृपया ऊपर दिए गए Reason (कारण) को पढ़ें।")
             return None
             
         output = response.text.replace("```text", "").replace("```", "").strip()
@@ -77,7 +78,7 @@ def generate_ai_script(topic):
         return "\n".join(final_lines)
 
     except Exception as e:
-        print(f"❌ Gemini AI Error: {e}")
+        print(f"❌ Critical Gemini AI Error: {e}")
         return None
 
 def process_stories():
