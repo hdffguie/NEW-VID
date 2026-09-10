@@ -5,7 +5,7 @@ import re
 INPUT_DIR = "all_downloaded_videos"
 OUTPUT_DIR = "final_output"
 
-# 👈 यहाँ अपने चैनल का नाम लिखें
+# 👈 अपने चैनल का नाम यहाँ बदलें
 WATERMARK_TEXT = "YOUR CHANNEL NAME" 
 
 os.makedirs(OUTPUT_DIR, exist_ok=True)
@@ -32,21 +32,21 @@ def generate_tts(text, index):
 def process_single_clip(input_path, output_path, index, total_clips, story_text):
     audio_path = generate_tts(story_text, index) if story_text else None
     
-    # 🌟 4K + Visual Fingerprint Color Filter + Center Watermark
+    # 🎥 4K + Visual Color Filter + Transparent Watermark
     base_filter = (
         f"scale=2160:3840:flags=lanczos,"
-        f"eq=contrast=1.05:saturation=1.1,"  # Color Grading (Originality)
+        f"eq=contrast=1.05:saturation=1.1,"
         f"unsharp=5:5:1.5:5:5:0.0,fps=30,"
-        f"drawtext=text='{WATERMARK_TEXT}':fontcolor=white@0.25:fontsize=110:x=(w-text_w)/2:y=(h-text_h)/2" # Watermark
+        f"drawtext=text='{WATERMARK_TEXT}':fontcolor=white@0.25:fontsize=110:x=(w-text_w)/2:y=(h-text_h)/2"
     )
 
-    # 🧲 Retention Booster 1: पहली क्लिप पर टॉप हुक (0-3 सेक)
+    # 🧲 Hook Text on Clip 1 (कॉमा से फ़िल्टर अलग किया गया)
     if index == 1:
-        base_filter += ":drawtext=text='अंत तक जरूर देखना 😱':fontcolor=yellow:fontsize=120:x=(w-text_w)/2:y=350:enable='between(t,0,3)'"
+        base_filter += ",drawtext=text='अंत तक जरूर देखना 😱':fontcolor=yellow:fontsize=120:x=(w-text_w)/2:y=350:enable='between(t,0,3)'"
     
-    # 🧲 Retention Booster 2: आखिरी क्लिप पर Subscribe CTA
+    # 🧲 Subscribe CTA on Final Clip (कॉमा से फ़िल्टर अलग किया गया)
     if index == total_clips:
-        base_filter += ":drawtext=text='लाइक और सब्सक्राइब करें 👇':fontcolor=white:box=1:boxcolor=red@0.8:boxborderw=20:fontsize=100:x=(w-text_w)/2:y=h-450"
+        base_filter += ",drawtext=text='लाइक और सब्सक्राइब करें 👇':fontcolor=white:box=1:boxcolor=red@0.8:boxborderw=20:fontsize=100:x=(w-text_w)/2:y=h-450"
 
     if audio_path and os.path.exists(audio_path):
         v_dur = get_duration(input_path)
@@ -55,7 +55,7 @@ def process_single_clip(input_path, output_path, index, total_clips, story_text)
         
         filter_complex = (
             f"[0:v]setpts={v_pts_factor:.4f}*PTS,{base_filter}[v_out]; "
-            f"[0:a]volume=0.15[orig_a]; [1:a]volume=1.6[tts_a]; " # Audio Ducking (BGM 15%, Voice 160%)
+            f"[0:a]volume=0.15[orig_a]; [1:a]volume=1.6[tts_a]; "
             f"[orig_a][tts_a]amix=inputs=2:duration=longest:weights=1 1[a_out]"
         )
         cmd = ["ffmpeg", "-y", "-i", input_path, "-i", audio_path, "-filter_complex", filter_complex,
@@ -73,7 +73,7 @@ def merge_with_crossfade(clips):
     for i in range(1, len(clips)):
         next_video = clips[i]
         dur1 = get_duration(merged_video)
-        offset = max(0, dur1 - 0.8) # 0.8-second smooth crossfade
+        offset = max(0, dur1 - 0.8)
         
         temp_out = os.path.join(OUTPUT_DIR, f"temp_merge_{i}.mp4")
         filter_complex = (
@@ -97,7 +97,7 @@ def main():
         with open("prompts.txt", "r", encoding="utf-8") as f:
             for idx, line in enumerate(f.readlines(), 1):
                 parts = line.split("|")
-                if len(parts) >= 3: prompts[idx] = parts[2].strip()
+                if len(parts) >= 2: prompts[idx] = parts[1].strip()
 
     video_files = sorted([os.path.join(r, f) for r, d, files in os.walk(INPUT_DIR) for f in files if f.endswith(".mp4")], key=lambda x: natural_sort_key(os.path.basename(x)))
     
