@@ -28,15 +28,16 @@ def generate_ai_script(topic):
     
     CRITICAL RULES (FOLLOW STRICTLY OR SYSTEM WILL CRASH):
     1. EXACT LENGTH: Generate EXACTLY {target_scenes} lines. Not 1 less, not 1 more.
-    2. FORMAT: Every single line MUST have exactly 4 parts separated by the pipe (|) symbol.
-    3. NARRATOR TONE: You must tell a story like a narrator. DO NOT use Gen-Z slang, memes, or stand-up comedy style.
-    4. PURE TEXT ONLY: DO NOT write any timestamps (like 00:00:00), numbering, or English words in the Hindi text. Only write pure Hindi narration.
-    5. HINDI AUDIO: Short Hindi sentences (10-14 words) for perfect pacing.
-    6. IMAGE PROMPT: Hyper-realistic, cinematic photography, real humans, highly detailed 8k. STRICTLY NO 3D, NO CARTOON, NO ANIMATION.
-    7. VIDEO PROMPT: Short motion prompt for AI video. YOU MUST ADD THIS EXACT TEXT AT THE END OF EVERY VIDEO PROMPT: ", no voice, no background music, only high quality sound effects".
+    2. VERY IMPORTANT (TIMING): Each Hindi sentence MUST be VERY SHORT (Maximum 8 to 12 words only). It must be speakable within 5 seconds.
+    3. DUPLICATE TEXT: Part 1 and Part 2 must be the EXACT SAME Hindi sentence (Copy paste it).
+    4. FORMAT: Every single line MUST have exactly 4 parts separated by the pipe (|) symbol.
+    5. NARRATOR TONE: Tell a story like a serious narrator. No memes, no Gen-Z slang.
+    6. PURE TEXT ONLY: DO NOT write timestamps (00:00), numbers, or English words in the Hindi text.
+    7. IMAGE PROMPT: Hyper-realistic cinematic photography, real humans, 8k. STRICTLY NO 3D, NO CARTOON.
+    8. VIDEO PROMPT: Short motion prompt. ADD THIS AT THE END: ", no voice, no background music, only high quality sound effects".
     
     Format Example (Line by Line):
-    Hindi text | Hindi text | Realistic portrait of an old Indian man in a dark room, cinematic lighting | Cinematic slow zoom in, no voice, no background music, only high quality sound effects
+    किसान ने लालच में सब कुछ दांव पर लगा दिया। | किसान ने लालच में सब कुछ दांव पर लगा दिया। | Realistic portrait of an old Indian farmer looking at gold coins, cinematic lighting, 8k | Slow pan shot, no voice, no background music, only high quality sound effects
     """
     
     try:
