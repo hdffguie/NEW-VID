@@ -33,7 +33,7 @@ jobs:
       with:
         python-version: '3.10'
     - run: |
-        pip install google-generativeai
+        pip install google-genai
         python auto_prompt.py
       env:
         VIDEO_DURATION: ${{ github.event.inputs.video_duration || '60' }}
