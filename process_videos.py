@@ -18,6 +18,14 @@ def get_duration(file_path):
         return float(subprocess.check_output(cmd).decode().strip())
     except: return 4.0
 
+def has_audio_stream(file_path):
+    try:
+        cmd = ["ffprobe", "-v", "error", "-select_streams", "a", "-show_entries", "stream=codec_type", "-of", "csv=p=0", file_path]
+        output = subprocess.check_output(cmd).decode().strip()
+        return len(output) > 0
+    except:
+        return False
+
 def generate_tts(text, index):
     audio_path = os.path.join(OUTPUT_DIR, f"audio_{index}.mp3")
     cmd = ["edge-tts", "--voice", "hi-IN-SwaraNeural", "--rate=+6%", "--pitch=+10Hz", "--text", text, "--write-media", audio_path]
@@ -48,18 +56,25 @@ def process_single_clip(input_path, output_path, index, total_clips, story_text)
     if index == total_clips:
         base_filter += f",drawtext=text='लाइक और सब्सक्राइब करें 👇':fontcolor=white:box=1:boxcolor=red@0.8:boxborderw=20:fontsize={font_size}:x=(w-text_w)/2:y=h-450"
 
+    v_has_audio = has_audio_stream(input_path)
+
     if audio_path and os.path.exists(audio_path):
         v_dur = get_duration(input_path)
         a_dur = get_duration(audio_path)
         v_pts_factor = (a_dur / v_dur) if v_dur > 0 else 1
         
-        filter_complex = (
-            f"[0:v]setpts={v_pts_factor:.4f}*PTS,{base_filter}[v_out]; "
-            f"[0:a]volume=0.15[orig_a]; [1:a]volume=1.6[tts_a]; "
-            f"[orig_a][tts_a]amix=inputs=2:duration=longest:weights=1 1[a_out]"
-        )
-        cmd = ["ffmpeg", "-y", "-i", input_path, "-i", audio_path, "-filter_complex", filter_complex,
-               "-map", "[v_out]", "-map", "[a_out]", "-c:v", "libx264", "-crf", "16", "-preset", "fast", "-c:a", "aac", output_path]
+        if v_has_audio:
+            filter_complex = (
+                f"[0:v]setpts={v_pts_factor:.4f}*PTS,{base_filter}[v_out]; "
+                f"[0:a]volume=0.15[orig_a]; [1:a]volume=1.6[tts_a]; "
+                f"[orig_a][tts_a]amix=inputs=2:duration=longest:weights=1 1[a_out]"
+            )
+            cmd = ["ffmpeg", "-y", "-i", input_path, "-i", audio_path, "-filter_complex", filter_complex,
+                   "-map", "[v_out]", "-map", "[a_out]", "-c:v", "libx264", "-crf", "16", "-preset", "fast", "-c:a", "aac", output_path]
+        else:
+            filter_complex = f"[0:v]setpts={v_pts_factor:.4f}*PTS,{base_filter}[v_out]"
+            cmd = ["ffmpeg", "-y", "-i", input_path, "-i", audio_path, "-filter_complex", filter_complex,
+                   "-map", "[v_out]", "-map", "1:a", "-c:v", "libx264", "-crf", "16", "-preset", "fast", "-c:a", "aac", output_path]
     else:
         cmd = ["ffmpeg", "-y", "-i", input_path, "-vf", base_filter, "-c:v", "libx264", "-crf", "16", "-preset", "fast", output_path]
     
@@ -74,8 +89,17 @@ def merge_with_crossfade(clips):
         dur1 = get_duration(merged_video)
         offset = max(0, dur1 - 0.8)
         temp_out = os.path.join(OUTPUT_DIR, f"temp_merge_{i}.mp4")
-        filter_complex = f"[0:v][1:v]xfade=transition=fade:duration=0.8:offset={offset}[v_out]; [0:a][1:a]amix=inputs=2:duration=longest[a_out]"
-        cmd = ["ffmpeg", "-y", "-i", merged_video, "-i", next_video, "-filter_complex", filter_complex, "-map", "[v_out]", "-map", "[a_out]", "-c:v", "libx264", "-crf", "16", "-preset", "fast", "-c:a", "aac", temp_out]
+        
+        v1_has_a = has_audio_stream(merged_video)
+        v2_has_a = has_audio_stream(next_video)
+
+        if v1_has_a and v2_has_a:
+            filter_complex = f"[0:v][1:v]xfade=transition=fade:duration=0.8:offset={offset}[v_out]; [0:a][1:a]amix=inputs=2:duration=longest[a_out]"
+            cmd = ["ffmpeg", "-y", "-i", merged_video, "-i", next_video, "-filter_complex", filter_complex, "-map", "[v_out]", "-map", "[a_out]", "-c:v", "libx264", "-crf", "16", "-preset", "fast", "-c:a", "aac", temp_out]
+        else:
+            filter_complex = f"[0:v][1:v]xfade=transition=fade:duration=0.8:offset={offset}[v_out]"
+            cmd = ["ffmpeg", "-y", "-i", merged_video, "-i", next_video, "-filter_complex", filter_complex, "-map", "[v_out]", "-c:v", "libx264", "-crf", "16", "-preset", "fast", temp_out]
+            
         subprocess.run(cmd, check=True)
         merged_video = temp_out
     return merged_video
