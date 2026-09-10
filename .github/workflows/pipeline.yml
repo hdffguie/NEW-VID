@@ -2,35 +2,9 @@ name: Automated Image and Video Pipeline
 
 on:
   schedule:
-    - cron: '57 23 * * *'
-    - cron: '56 14 * * *'
+    - cron: '57 23 * * *'  # 5:27 AM IST
+    - cron: '56 14 * * *'  # 8:26 PM IST
   workflow_dispatch:
-    inputs:
-      video_duration:
-        description: 'Video Length in Seconds (e.g. 15, 30, 60)'
-        required: true
-        default: '60'
-        type: string
-      visual_style:
-        description: 'Visual Style (Image Type)'
-        required: true
-        default: 'Realistic Human'
-        type: choice
-        options:
-        - 'Realistic Human'
-        - '3D Pixar'
-        - '2D Anime'
-      story_genre:
-        description: 'Story Genre (Tone)'
-        required: true
-        default: 'Educational'
-        type: choice
-        options:
-        - 'Educational'
-        - 'Funny'
-        - 'Cartoon'
-        - 'Sad'
-        - 'Horror'
 
 permissions:
   contents: write
@@ -49,9 +23,6 @@ jobs:
         pip install google-genai
         python auto_prompt.py
       env:
-        VIDEO_DURATION: ${{ github.event.inputs.video_duration || '60' }}
-        VISUAL_STYLE: ${{ github.event.inputs.visual_style || 'Realistic Human' }}
-        STORY_GENRE: ${{ github.event.inputs.story_genre || 'Educational' }}
         GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
     - name: Commit and Push Updated story.txt
       run: |
