@@ -1,4 +1,5 @@
 import os
+import sys
 import requests
 import urllib.parse
 import math
@@ -18,7 +19,6 @@ def generate_ai_script(topic):
     print(f"🎬 Target Scenes: {target_scenes} Scenes (5 sec each)")
     print(f"🤖 AI कहानी और प्रोफेशनल प्रॉम्प्ट्स सोच रहा है...\nTopic: '{topic}'")
     
-    # यह है "God-Level Master Prompt" जो AI को इंस्ट्रक्शन देगा
     master_prompt = f"""You are an elite Hollywood scriptwriter, psychological hook expert, and Midjourney Prompt Engineer.
     
     Task: Write a highly emotional and viral Hindi short story based on the topic: "{topic}".
@@ -41,14 +41,14 @@ def generate_ai_script(topic):
         response.raise_for_status()
         output = response.text.strip()
         
-        # फालतू का टेक्स्ट हटाने के लिए
         output = output.replace("```text", "").replace("```", "").strip()
-        
-        # सिर्फ वही लाइनें चुनें जिनमें "|" है
         valid_lines = [line.strip() for line in output.split('\n') if '|' in line]
         
-        # AI कभी-कभी 1-2 लाइन ज्यादा दे देता है, उसे कट कर लें
         final_lines = valid_lines[:target_scenes]
+        
+        if not final_lines:
+            return None
+            
         return "\n".join(final_lines)
 
     except Exception as e:
@@ -58,14 +58,14 @@ def generate_ai_script(topic):
 def process_stories():
     if not os.path.exists(STORY_FILE):
         print("❌ story.txt not found!")
-        return
+        sys.exit(1)  # पाइपलाइन यहीं रोक देगा
 
     with open(STORY_FILE, "r", encoding="utf-8") as f:
         content = f.read().strip()
 
     if not content:
-        print("❌ story.txt is empty! Please add some topics.")
-        return
+        print("❌ story.txt is empty! Please add some topics in story.txt file.")
+        sys.exit(1)  # पाइपलाइन यहीं रोक देगा
 
     topics = [t.strip() for t in content.split("\n") if t.strip()]
     current_topic = topics[0]
@@ -75,7 +75,7 @@ def process_stories():
     
     if not ai_output:
         print("⚠️ AI स्क्रिप्ट नहीं बना पाया। कृपया कोड को दोबारा रन करें।")
-        return
+        sys.exit(1)  # पाइपलाइन यहीं रोक देगा
 
     print("\n✅ AI Generated Script & Prompts:\n" + ai_output + "\n")
 
