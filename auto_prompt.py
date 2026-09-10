@@ -1,7 +1,22 @@
 import os
 import random
 import re
+import time
 from deep_translator import GoogleTranslator
+
+def safe_translate(text, translator):
+    if not text.strip():
+        return text
+    for attempt in range(3):
+        try:
+            result = translator.translate(text)
+            # अगर गूगल ट्रांसलेटर का सर्वर एरर आया है, तो उसे रिजेक्ट करें
+            if result and "Error 500" not in result and "Server Error" not in result:
+                return result
+        except Exception:
+            time.sleep(1)
+    # अगर ट्रांसलेशन फ़ेल हो जाए तो ओरिजिनल टेक्स्ट ही यूज़ करेगा
+    return text
 
 def generate_prompts_and_metadata():
     if not os.path.exists("story.txt"):
@@ -27,36 +42,29 @@ def generate_prompts_and_metadata():
         "macro focus with slow forward camera drift"
     ]
 
-    # 🔊 यह केवल वीडियो प्रॉम्प्ट में जाएगा
     MASTER_AUDIO_PROMPT = "STRICTLY NO HUMAN VOICE, NO BACKGROUND MUSIC. Only high quality cinematic sound effects, whooshes, and environmental impacts."
 
     translator = GoogleTranslator(source='auto', target='en')
     prompts = []
 
     for idx, sentence in enumerate(sentences, 1):
-        try:
-            translated = translator.translate(sentence)
-        except Exception:
-            translated = sentence
-            
+        translated = safe_translate(sentence, translator)
         motion = first_clip_motion if idx == 1 else random.choice(random_motions)
         
-        # 🖼️ 1. Image Prompt (इमेज के लिए: ऑडियो रहित + 380 कैरेक्टर सेफ लिमिट)
+        # 🖼️ Image Prompt (सुरक्षित 380 कैरेक्टर सीमा)
         image_prompt = f"{translated}, {motion}, ultra-realistic, cinematic lighting, 8k resolution, highly detailed"
         if len(image_prompt) > 380:
             image_prompt = image_prompt[:380]
 
-        # 🎥 2. Video Prompt (वीडियो के लिए: मास्टर ऑडियो प्रॉम्प्ट शामिल)
+        # 🎥 Video Prompt (मास्टर ऑडियो प्रॉम्प्ट के साथ)
         video_prompt = f"{translated}, {motion}, {MASTER_AUDIO_PROMPT}, ultra-realistic, cinematic lighting, 8k resolution"
 
-        # Format: Index | Sentence | Image_Prompt | Video_Prompt
         prompts.append(f"{idx} | {sentence} | {image_prompt} | {video_prompt}")
 
     with open("prompts.txt", "w", encoding="utf-8") as f:
         f.write("\n".join(prompts))
-    print(f"✅ prompts.txt generated with separate Image and Video prompts!")
+    print(f"✅ prompts.txt generated safely with {len(prompts)} prompts!")
 
-    # 🚀 YouTube SEO Metadata Generator
     first_sentence = sentences[0] if sentences else "Viral Story"
     metadata_content = f"""📌 YOUTUBE SEO METADATA
 
