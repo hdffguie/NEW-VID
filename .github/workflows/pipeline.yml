@@ -13,11 +13,17 @@ jobs:
     - uses: actions/setup-python@v5
       with:
         python-version: '3.10'
-    - run: |
+    
+    - name: Install Dependencies
+      run: |
         pip install -r requirements.txt
+        pip install deep-translator Pillow edge-tts
         playwright install chromium
         playwright install-deps chromium
         
+    - name: Run Auto Prompt Generator
+      run: python auto_prompt.py
+
     - name: Run Bing Image Generator
       env:
         BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
@@ -59,8 +65,10 @@ jobs:
         name: bing_images
         path: bing_automated_images/
 
-    - run: |
+    - name: Install Dependencies
+      run: |
         pip install -r requirements.txt
+        pip install Pillow
         playwright install chromium
         playwright install-deps chromium
 
@@ -91,7 +99,7 @@ jobs:
     - name: Install FFmpeg and Python Packages
       run: |
         sudo apt-get update && sudo apt-get install -y ffmpeg
-        pip install edge-tts
+        pip install edge-tts deep-translator Pillow
         
     - name: Download All Video Artifacts
       uses: actions/download-artifact@v4
