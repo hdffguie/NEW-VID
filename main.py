@@ -34,7 +34,16 @@ def read_prompts():
                 prompts[idx] = parts[0].strip()
     return prompts
 
-async def generate_single_image(machine_id, prompt_text, max_retries=4):
+async def capture_and_send_screenshot(page, machine_id, step_label):
+    """हर 5 सेकंड में स्क्रीनशॉट लेने और टेलीग्राम पर भेजने का फ़ंक्शन"""
+    shot_path = os.path.join(SAVE_FOLDER, f"live_status_m{machine_id}.png")
+    try:
+        await page.screenshot(path=shot_path)
+        send_telegram_photo(shot_path, f"📸 [Machine {machine_id}] {step_label}")
+    except Exception as e:
+        print(f"Screenshot Error: {e}")
+
+async def generate_single_image(machine_id, prompt_text, max_retries=3):
     out_img_path = os.path.join(SAVE_FOLDER, f"Generated_Image_{machine_id}.jpg")
     clean_prompt = re.sub(r'--ar\s+\d+:\d+', '', prompt_text).strip()
 
@@ -50,48 +59,60 @@ async def generate_single_image(machine_id, prompt_text, max_retries=4):
             page = await context.new_page()
             
             try:
-                # 1. Naya Updated URL
+                # 1. Page Load
                 await page.goto("https://www.bing.com/images/create/ai-image-generator", wait_until="domcontentloaded", timeout=60000)
-                await asyncio.sleep(3)
+                await capture_and_send_screenshot(page, machine_id, "Page Loaded")
+                await asyncio.sleep(2)
 
-                # 2. Naya Input Box
+                # 2. Input Fill
                 prompt_input = page.locator("textarea, input[placeholder*='Describe'], textarea[placeholder*='Describe']").first
                 await prompt_input.wait_for(state="visible", timeout=15000)
                 await prompt_input.fill(clean_prompt)
+                await capture_and_send_screenshot(page, machine_id, "Prompt Filled")
                 await asyncio.sleep(1)
 
-                # 3. Naya 'Generate' Button
+                # 3. Click Generate
                 generate_btn = page.locator("button:has-text('Generate'), button:has-text('Create')").first
                 if await generate_btn.is_visible(timeout=5000):
                     await generate_btn.click()
                 else:
                     await prompt_input.press("Enter")
 
-                print(f"⏳ Waiting for image generation on Machine {machine_id}...")
+                print(f"⏳ Live monitoring started for Machine {machine_id}...")
                 
-                # 4. Naya Main Generated Image Element Selector
-                img_element = page.locator("div.m_ic_img img, img[src*='th?id='], img[src*='bing.net'], div[class*='image'] img").first
-                await img_element.wait_for(state="visible", timeout=90000)
-                
-                src = await img_element.get_attribute("src")
-                if not src or not (src.startswith("http") or src.startswith("data:")):
-                    raise Exception("Image URL invalid or not found")
+                # 4. हर 5 सेकंड में स्क्रीनशॉट और इमेज चेक करने का लूप
+                src = None
+                for second in range(5, 95, 5):
+                    await asyncio.sleep(5)
+                    await capture_and_send_screenshot(page, machine_id, f"Generating... ({second}s passed)")
+                    
+                    # इमेज एलिमेंट चेक करें
+                    img_element = page.locator("div.m_ic_img img, img[src*='th?id='], img[src*='bing.net'], div[class*='image'] img").first
+                    if await img_element.is_visible():
+                        src = await img_element.get_attribute("src")
+                        if src and (src.startswith("http") or src.startswith("data:")):
+                            print(f"🎯 Image detected at {second} seconds!")
+                            break
+
+                if not src:
+                    raise Exception("Image not ready within time limit")
 
                 # Image Download Logic
                 img_data = requests.get(src, timeout=30).content
                 with open(out_img_path, "wb") as f:
                     f.write(img_data)
 
-                print(f"✅ Image #{machine_id} generated successfully on Attempt {attempt}!")
-                send_telegram_photo(out_img_path, f"🖼️ Image #{machine_id} Ready!")
+                print(f"✅ Image #{machine_id} generated successfully!")
+                send_telegram_photo(out_img_path, f"🎉 Final Image #{machine_id} Ready!")
                 
                 await browser.close()
                 return True
 
             except Exception as e:
                 print(f"⚠️ Attempt {attempt} Failed for Image {machine_id}: {e}")
+                await capture_and_send_screenshot(page, machine_id, f"Error on Attempt {attempt}")
                 await browser.close()
-                await asyncio.sleep(5)
+                await asyncio.sleep(3)
                 
     print(f"❌ All {max_retries} attempts failed for Image #{machine_id}.")
     return False
@@ -103,7 +124,7 @@ async def main():
     prompt_text = prompts.get(machine_id, "3D Pixar animation style, cinematic lighting, 8k resolution")
     print(f"🤖 Machine {machine_id} processing IMAGE prompt ({len(prompt_text)} chars): {prompt_text}")
 
-    success = await generate_single_image(machine_id, prompt_text, max_retries=4)
+    success = await generate_single_image(machine_id, prompt_text, max_retries=3)
     if not success:
         sys.exit(1)
 
