@@ -36,8 +36,6 @@ def read_prompts():
 
 async def generate_single_image(machine_id, prompt_text, max_retries=4):
     out_img_path = os.path.join(SAVE_FOLDER, f"Generated_Image_{machine_id}.jpg")
-    
-    # Bing के लिए अवांछित टैग्स जैसे --ar 9:16 को साफ़ करें
     clean_prompt = re.sub(r'--ar\s+\d+:\d+', '', prompt_text).strip()
 
     for attempt in range(1, max_retries + 1):
@@ -52,30 +50,34 @@ async def generate_single_image(machine_id, prompt_text, max_retries=4):
             page = await context.new_page()
             
             try:
-                await page.goto("https://www.bing.com/images/create", wait_until="domcontentloaded", timeout=60000)
+                # 1. Naya Updated URL
+                await page.goto("https://www.bing.com/images/create/ai-image-generator", wait_until="domcontentloaded", timeout=60000)
                 await asyncio.sleep(3)
 
-                prompt_input = page.locator("textarea[name='q'], input[name='q'], #sb_form_q").first
-                await prompt_input.wait_for(state="visible", timeout=10000)
+                # 2. Naya Input Box
+                prompt_input = page.locator("textarea, input[placeholder*='Describe'], textarea[placeholder*='Describe']").first
+                await prompt_input.wait_for(state="visible", timeout=15000)
                 await prompt_input.fill(clean_prompt)
                 await asyncio.sleep(1)
 
-                create_btn = page.locator("#create_btn_div, button:has-text('Create'), button:has-text('Generate'), a:has-text('Create')").first
-                if await create_btn.is_visible(timeout=5000):
-                    await create_btn.click()
+                # 3. Naya 'Generate' Button
+                generate_btn = page.locator("button:has-text('Generate'), button:has-text('Create')").first
+                if await generate_btn.is_visible(timeout=5000):
+                    await generate_btn.click()
                 else:
                     await prompt_input.press("Enter")
 
                 print(f"⏳ Waiting for image generation on Machine {machine_id}...")
                 
-                # अद्यतन और विस्तृत सेलेक्टर्स
-                img_element = page.locator("div.img_pt img, div.m_ic_img img, img.mimg, div.gi_pt img, a.iusc img").first
+                # 4. Naya Main Generated Image Element Selector
+                img_element = page.locator("div.m_ic_img img, img[src*='th?id='], img[src*='bing.net'], div[class*='image'] img").first
                 await img_element.wait_for(state="visible", timeout=90000)
                 
                 src = await img_element.get_attribute("src")
                 if not src or not (src.startswith("http") or src.startswith("data:")):
                     raise Exception("Image URL invalid or not found")
 
+                # Image Download Logic
                 img_data = requests.get(src, timeout=30).content
                 with open(out_img_path, "wb") as f:
                     f.write(img_data)
