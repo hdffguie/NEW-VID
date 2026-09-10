@@ -4,84 +4,106 @@ import re
 import time
 from deep_translator import GoogleTranslator
 
+STORY_FILE = "story.txt"
+
 def safe_translate(text, translator):
-    if not text.strip():
-        return text
+    if not text.strip(): return text
     for attempt in range(3):
         try:
             result = translator.translate(text)
-            # अगर गूगल ट्रांसलेटर का सर्वर एरर आया है, तो उसे रिजेक्ट करें
             if result and "Error 500" not in result and "Server Error" not in result:
                 return result
         except Exception:
             time.sleep(1)
-    # अगर ट्रांसलेशन फ़ेल हो जाए तो ओरिजिनल टेक्स्ट ही यूज़ करेगा
     return text
 
-def generate_prompts_and_metadata():
-    if not os.path.exists("story.txt"):
-        print("❌ story.txt file not found!")
-        return
+def process_bulk_stories():
+    if not os.path.exists(STORY_FILE):
+        print("❌ story.txt file missing!")
+        return None
 
-    with open("story.txt", "r", encoding="utf-8") as f:
+    with open(STORY_FILE, "r", encoding="utf-8") as f:
         content = f.read().strip()
 
+    stories = [s.strip() for s in content.split("===STORY===") if s.strip()]
+
+    if not stories:
+        print("❌ No stories found in story.txt!")
+        return None
+
+    # पहली कहानी पिक करें
+    current_story = stories[0]
+    remaining_stories = stories[1:]
+
+    # बचे हुए कहानियों को वापस story.txt में लिखें (ताकि अगली बार रिपीट न हो)
+    new_content = ""
+    for st in remaining_stories:
+        new_content += f"===STORY===\n{st}\n"
+
+    with open(STORY_FILE, "w", encoding="utf-8") as f:
+        f.write(new_content)
+
+    print(f"📖 Processed 1 story. {len(remaining_stories)} stories remaining in queue.")
+    return current_story
+
+def generate_prompts_and_metadata():
+    content = process_bulk_stories()
     if not content:
-        print("❌ story.txt is empty!")
         return
 
     raw_sentences = re.split(r'[\n.।]+', content)
     sentences = [s.strip() for s in raw_sentences if s.strip()]
 
-    first_clip_motion = "dramatic 360-degree slow pan, upward camera sweep"
+    intro_motions = [
+        "dramatic 360-degree slow pan, upward camera sweep",
+        "dynamic wide cinematic entrance shot, slow push in",
+        "low angle epic sweep shot with soft camera movement",
+        "intense slow zoom in on central subject"
+    ]
     random_motions = [
-        "slow punchy zoom in",
-        "smooth slow zoom out",
-        "subtle push in shot",
-        "gentle horizontal tracking shot",
-        "macro focus with slow forward camera drift"
+        "slow punchy zoom in", "smooth slow zoom out",
+        "subtle push in shot", "gentle horizontal tracking shot",
+        "dramatic side pan shot"
     ]
 
-    MASTER_AUDIO_PROMPT = "STRICTLY NO HUMAN VOICE, NO BACKGROUND MUSIC. Only high quality cinematic sound effects, whooshes, and environmental impacts."
-
+    MASTER_AUDIO_PROMPT = "STRICTLY NO HUMAN VOICE, NO BACKGROUND MUSIC. Only high quality cinematic sound effects."
     translator = GoogleTranslator(source='auto', target='en')
     prompts = []
+    selected_intro = random.choice(intro_motions)
 
     for idx, sentence in enumerate(sentences, 1):
         translated = safe_translate(sentence, translator)
-        motion = first_clip_motion if idx == 1 else random.choice(random_motions)
+        motion = selected_intro if idx == 1 else random.choice(random_motions)
         
-        # 🖼️ Image Prompt (सुरक्षित 380 कैरेक्टर सीमा)
-        image_prompt = f"{translated}, {motion}, ultra-realistic, cinematic lighting, 8k resolution, highly detailed"
-        if len(image_prompt) > 380:
-            image_prompt = image_prompt[:380]
+        image_prompt = f"{translated}, {motion}, ultra-realistic, cinematic lighting, 8k resolution"
+        if len(image_prompt) > 380: image_prompt = image_prompt[:380]
 
-        # 🎥 Video Prompt (मास्टर ऑडियो प्रॉम्प्ट के साथ)
-        video_prompt = f"{translated}, {motion}, {MASTER_AUDIO_PROMPT}, ultra-realistic, cinematic lighting, 8k resolution"
-
+        video_prompt = f"{translated}, {motion}, {MASTER_AUDIO_PROMPT}, ultra-realistic, cinematic lighting, 8k"
         prompts.append(f"{idx} | {sentence} | {image_prompt} | {video_prompt}")
 
     with open("prompts.txt", "w", encoding="utf-8") as f:
         f.write("\n".join(prompts))
-    print(f"✅ prompts.txt generated safely with {len(prompts)} prompts!")
 
-    first_sentence = sentences[0] if sentences else "Viral Story"
+    # Dynamic SEO Metadata
+    first_sentence = sentences[0] if sentences else "Viral AI Story"
     metadata_content = f"""📌 YOUTUBE SEO METADATA
 
-🎬 Title: {first_sentence[:50]}... 😱 #Shorts #Viral
+🎬 Title: {first_sentence[:55]}... 😱 #Shorts #Viral #AIStories
 
 📝 Description:
 {content}
 
 ---
-Watch until the end for a shocking twist! Don't forget to Like & Subscribe for more amazing stories.
+Watch till the end for a shocking twist! Like & Subscribe for daily cinematic AI stories.
 
-🏷️ Hashtags:
-#Shorts #HindiStories #ViralShorts #Trending #AIStories #MoralStories #YouTubeShorts
+🏷️ Tags:
+Shorts, Hindi Stories, Viral Shorts, AI Stories, Horror Stories, Trending Shorts, Moral Stories
+
+🤖 AI_DISCLOSURE: YES
 """
     with open("metadata.txt", "w", encoding="utf-8") as f:
         f.write(metadata_content)
-    print("✅ metadata.txt generated successfully!")
+    print("✅ prompts.txt & metadata.txt ready!")
 
 if __name__ == "__main__":
     generate_prompts_and_metadata()
