@@ -2,7 +2,8 @@ name: Automated Image and Video Pipeline
 
 on:
   schedule:
-    - cron: '0 3,13 * * *'
+    - cron: '57 23 * * *'  # 5:27 AM IST (India Time)
+    - cron: '56 14 * * *'  # 8:26 PM IST (India Time)
   workflow_dispatch:
     inputs:
       aspect_ratio:
