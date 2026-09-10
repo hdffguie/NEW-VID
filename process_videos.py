@@ -37,7 +37,6 @@ def get_random_face_clip():
     out_face = os.path.join(OUTPUT_DIR, "processed_face.mp4")
     random_filter = random.choice(["eq=contrast=1.1:brightness=0.03", "eq=saturation=1.4", "hue=s=1.2:h=5"])
     
-    # 🎯 FIX: High Bitrate for Face Clip
     cmd = ["ffmpeg", "-y", "-i", selected_clip, "-vf", f"scale=2160:3840:force_original_aspect_ratio=increase,crop=2160:3840,setsar=1,fps=30,format=yuv420p,{random_filter}", "-c:v", "libx264", "-b:v", "15M", "-c:a", "aac", "-b:a", "320k", out_face]
     subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     return out_face
@@ -45,7 +44,6 @@ def get_random_face_clip():
 def generate_tts_with_vtt(text, index):
     audio_path = os.path.join(OUTPUT_DIR, f"audio_{index}.mp3")
     vtt_path = os.path.join(OUTPUT_DIR, f"audio_{index}.vtt")
-    # 🎯 FIX: Clear Professional Voice (Normal Speed)
     cmd = ["edge-tts", "--voice", "hi-IN-MadhurNeural", "--rate=+2%", "--pitch=+0Hz", "--text", text, "--write-media", audio_path, "--write-subtitles", vtt_path]
     subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     return audio_path, vtt_path
@@ -75,7 +73,6 @@ def process_single_clip(input_path, output_path, index, story_text, global_vid_c
     audio_path, vtt_path = None, None
     if story_text: audio_path, vtt_path = generate_tts_with_vtt(story_text, index)
     
-    # 🎯 FIX: Extreme 4K Sharpness (Unsharp Filter added)
     scale_filter = "scale=2160:3840:force_original_aspect_ratio=increase,crop=2160:3840,setsar=1,format=yuv420p,fps=30,unsharp=5:5:1.0:5:5:0.0"
     
     stretch_filter = ""
@@ -101,7 +98,6 @@ def process_single_clip(input_path, output_path, index, story_text, global_vid_c
     else:
         cmd_base += ["-vf", base_filter]
     
-    # 🎯 FIX: High Bitrate for Maximum Quality
     cmd = cmd_base + ["-c:v", "libx264", "-preset", "medium", "-b:v", "15M", "-maxrate", "20M", "-bufsize", "30M", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "320k", output_path]
     subprocess.run(cmd, check=True)
     return output_path
