@@ -28,10 +28,10 @@ def read_prompts():
     with open(PROMPT_FILE, "r", encoding="utf-8") as f:
         for idx, line in enumerate(f.readlines(), 1):
             parts = line.split("|")
-            if len(parts) >= 1:
+            if len(parts) >= 3:
                 prompts[idx] = parts[0].strip()
             elif len(parts) >= 1:
-                prompts[idx] = parts[0].strip()
+                prompts[idx] = parts[2].strip()
     return prompts
 
 async def capture_and_send_screenshot(page, machine_id, step_label):
