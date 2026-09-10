@@ -34,6 +34,14 @@ def read_prompts():
                 prompts[idx] = parts[0].strip()
     return prompts
 
+async def capture_and_send_screenshot(page, machine_id, step_label):
+    shot_path = os.path.join(SAVE_FOLDER, f"live_status_m{machine_id}.png")
+    try:
+        await page.screenshot(path=shot_path)
+        send_telegram_photo(shot_path, f"📸 [Machine {machine_id}] {step_label}")
+    except Exception as e:
+        print(f"Screenshot Error: {e}")
+
 async def generate_single_image(machine_id, prompt_text, max_retries=3):
     out_img_path = os.path.join(SAVE_FOLDER, f"Generated_Image_{machine_id}.jpg")
     clean_prompt = re.sub(r'--ar\s+\d+:\d+', '', prompt_text).strip()
@@ -52,12 +60,14 @@ async def generate_single_image(machine_id, prompt_text, max_retries=3):
             try:
                 # 1. Open Bing AI Creator
                 await page.goto("https://www.bing.com/images/create/ai-image-generator", wait_until="domcontentloaded", timeout=60000)
+                await capture_and_send_screenshot(page, machine_id, "Page Loaded")
                 await asyncio.sleep(2)
 
                 # 2. Fill Prompt
                 prompt_input = page.locator("textarea, input[placeholder*='Describe']").first
                 await prompt_input.wait_for(state="visible", timeout=15000)
                 await prompt_input.fill(clean_prompt)
+                await capture_and_send_screenshot(page, machine_id, "Prompt Filled")
                 await asyncio.sleep(1)
 
                 # 3. Click Generate
@@ -67,48 +77,37 @@ async def generate_single_image(machine_id, prompt_text, max_retries=3):
                 else:
                     await prompt_input.press("Enter")
 
-                print(f"⏳ Waiting for Download button to appear on Machine {machine_id}...")
+                print(f"⏳ Monitoring generation and waiting for Exact Download button on Machine {machine_id}...")
                 
-                # 4. Download Button Selector (Arrow Icon at bottom)
-                download_btn = page.locator("button[title*='Download'], a[title*='Download'], svg[class*='download']").first
+                # 4. exact selector from your HTML
+                exact_download_btn = page.locator("button.acf-button-standard__btn[title='Download'], button[title='Download']").first
                 
-                # अगर विशेष एट्रीब्यूट न मिले तो लेआउट के डाउनलोड आइकन पर सीधे क्लिक करें
-                if not await download_btn.is_visible(timeout=75000):
-                    download_btn = page.locator("button:has(svg), div:has-text('Set as Wallpaper') ~ button, div:has-text('Edit image') ~ button").first
+                for second in range(5, 95, 5):
+                    await asyncio.sleep(5)
+                    await capture_and_send_screenshot(page, machine_id, f"Generating... ({second}s passed)")
+                    
+                    if await exact_download_btn.is_visible():
+                        print(f"🎯 Exact Download button detected at {second} seconds!")
+                        break
 
-                await download_btn.wait_for(state="visible", timeout=15000)
+                await exact_download_btn.wait_for(state="visible", timeout=10000)
 
-                # 5. Native Download Trigger
+                # 5. Native Download
                 async with page.expect_download(timeout=30000) as download_info:
-                    await download_btn.click()
+                    await exact_download_btn.click()
                 
                 download = await download_info.value
                 await download.save_as(out_img_path)
 
-                print(f"✅ Image #{machine_id} downloaded successfully using Download Button!")
-                send_telegram_photo(out_img_path, f"🎉 Image #{machine_id} Downloaded!")
+                print(f"✅ Image #{machine_id} downloaded successfully using Exact Button!")
+                send_telegram_photo(out_img_path, f"🎉 Final Image #{machine_id} Downloaded!")
                 
                 await browser.close()
                 return True
 
             except Exception as e:
-                print(f"⚠️ Direct download button attempt failed ({e}). Trying fallback HTTP fetch...")
-                try:
-                    # Fallback: बड़ी मुख्य इमेज से src निकालकर डायरेक्ट HTTP गेट करना
-                    main_img = page.locator("div[class*='main'] img, img[src*='th?id='], img[src*='bing.net']").first
-                    if await main_img.is_visible(timeout=10000):
-                        src = await main_img.get_attribute("src")
-                        if src and (src.startswith("http") or src.startswith("data:")):
-                            img_data = requests.get(src, timeout=30).content
-                            with open(out_img_path, "wb") as f:
-                                f.write(img_data)
-                            print(f"✅ Image #{machine_id} fetched via fallback HTTP!")
-                            send_telegram_photo(out_img_path, f"🎉 Image #{machine_id} Ready!")
-                            await browser.close()
-                            return True
-                except Exception as fb_err:
-                    print(f"Fallback error: {fb_err}")
-
+                print(f"⚠️ Attempt {attempt} Failed for Image {machine_id}: {e}")
+                await capture_and_send_screenshot(page, machine_id, f"Error on Attempt {attempt}")
                 await browser.close()
                 await asyncio.sleep(3)
                 
