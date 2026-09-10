@@ -21,7 +21,6 @@ def generate_ai_script(topic):
     print(f"🎬 Target Scenes: {target_scenes} Scenes (5 sec each)")
     print(f"🚀 Google Gemini AI कहानी (Narrator Style) सोच रहा है...\nTopic: '{topic}'")
     
-    # 🎯 FIX: AI को Narrator बनाया गया है और Numbers/Timestamps लिखने से सख्त मना किया गया है।
     master_prompt = f"""You are an elite Professional Hindi Storyteller and Narrator.
     
     Task: Write a highly engaging, emotional, and realistic Hindi short story based on: "{topic}".
@@ -87,8 +86,13 @@ def process_stories():
     with open(PROMPT_FILE, "w", encoding="utf-8") as f:
         f.write(ai_output + "\n")
 
+    # 🚀 FIX: Viral SEO, Clickbait Title and Trendy Tags
+    viral_title = f"{current_topic} 😱🤯 | Wait for the end! #shorts #viral #trending"
+    viral_description = f"🔥 {current_topic} - This story will shock you! Watch till the end to find out what happened.\n\n👇 LIKE & SUBSCRIBE for more amazing content!\n\n#shorts #hindi #viral #trending #story #moralstory #amazingfacts #ai #aigenerated"
+    viral_tags = "shorts, viral, trending, hindi story, moral story, emotional story, amazing facts, psychology facts, ai video, fyp, youtube shorts, facts in hindi"
+
     with open(METADATA_FILE, "w", encoding="utf-8") as f:
-        f.write(f"Title: {current_topic} - True Story #shorts #story\nDescription: Watch till the end to know the truth!\nTags: shorts, true story, realistic, emotional")
+        f.write(f"Title: {viral_title}\nDescription: {viral_description}\nTags: {viral_tags}")
 
     with open(STORY_FILE, "w", encoding="utf-8") as f:
         f.write("\n".join(topics[1:]) + "\n" if len(topics) > 1 else "")
