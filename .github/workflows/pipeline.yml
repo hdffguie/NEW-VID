@@ -137,9 +137,11 @@ jobs:
     - uses: actions/setup-python@v5
       with:
         python-version: '3.10'
-    - name: Install FFmpeg and Dependencies
+    - name: Install FFmpeg, Fonts and Dependencies
       run: |
-        sudo apt-get update && sudo apt-get install -y ffmpeg fonts-freefont-ttf
+        sudo apt-get update && sudo apt-get install -y ffmpeg fonts-freefont-ttf wget
+        # यहाँ हम Google से असली हिंदी फॉन्ट डाउनलोड कर रहे हैं
+        wget "https://github.com/google/fonts/raw/main/ofl/notosansdevanagari/NotoSansDevanagari-Bold.ttf" -O NotoSansHindi.ttf
         pip install -r requirements.txt
     - uses: actions/download-artifact@v4
       with:
