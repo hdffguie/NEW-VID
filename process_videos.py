@@ -7,18 +7,17 @@ import glob
 INPUT_DIR = "all_downloaded_videos"
 OUTPUT_DIR = "final_output"
 FACE_DIR = "face_clips"
+BGM_DIR = "bgm"
 FONT_PATH = "NotoSansHindi.ttf"
 
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
-# 🎨 नियॉन और डार्क कलर्स (स्क्रीनशॉट जैसा)
 NEON_COLORS = ['yellow', '#00FFFF', '#39FF14', '#FF00FF', 'white']
 
 def natural_sort_key(s):
     return [int(text) if text.isdigit() else text.lower() for text in re.split(r'(\d+)', s)]
 
 def get_random_face_clip():
-    """ आपकी फेस क्लिप को रैंडम फ़िल्टर के साथ उठाता है (एकदम लास्ट में लगाने के लिए) """
     if not os.path.exists(FACE_DIR): return None
     clips = glob.glob(os.path.join(FACE_DIR, "*.mp4"))
     if not clips: return None
@@ -26,7 +25,6 @@ def get_random_face_clip():
     selected_clip = random.choice(clips)
     out_face = os.path.join(OUTPUT_DIR, "processed_face.mp4")
     
-    # 🎭 रैंडम कलर ग्रेडिंग (यूट्यूब को चकमा देने के लिए)
     filters = [
         "eq=contrast=1.1:brightness=0.03",
         "eq=saturation=1.4",
@@ -35,42 +33,51 @@ def get_random_face_clip():
     ]
     random_filter = random.choice(filters)
     
-    cmd = [
-        "ffmpeg", "-y", "-i", selected_clip, 
-        "-vf", f"scale=2160:3840:force_original_aspect_ratio=increase,crop=2160:3840,setsar=1,fps=30,format=yuv420p,{random_filter}", 
-        "-c:v", "libx264", "-c:a", "aac", "-ar", "44100", out_face
-    ]
+    cmd = ["ffmpeg", "-y", "-i", selected_clip, "-vf", f"scale=2160:3840:force_original_aspect_ratio=increase,crop=2160:3840,setsar=1,fps=30,format=yuv420p,{random_filter}", "-c:v", "libx264", "-c:a", "aac", "-ar", "44100", out_face]
     subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     return out_face
 
 def generate_tts_with_vtt(text, index):
     audio_path = os.path.join(OUTPUT_DIR, f"audio_{index}.mp3")
     vtt_path = os.path.join(OUTPUT_DIR, f"audio_{index}.vtt")
-    
-    cmd = [
-        "edge-tts", "--voice", "hi-IN-MadhurNeural", "--rate=+15%", "--pitch=+5Hz", 
-        "--text", text, "--write-media", audio_path, "--write-subtitles", vtt_path
-    ]
+    cmd = ["edge-tts", "--voice", "hi-IN-MadhurNeural", "--rate=+15%", "--pitch=+5Hz", "--text", text, "--write-media", audio_path, "--write-subtitles", vtt_path]
     subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     return audio_path, vtt_path
 
-def parse_vtt(vtt_path):
+def parse_vtt_to_words(vtt_path):
+    """ 🎯 FIX: अगर AI लंबी लाइन देता है, तो यह फंक्शन उसे खुद 1-1 शब्द में तोड़ देगा! """
     words_data = []
     if not os.path.exists(vtt_path): return words_data
+    
     with open(vtt_path, 'r', encoding='utf-8') as f:
-        lines = f.readlines()
-    for i in range(len(lines)):
-        if '-->' in lines[i]:
-            times = lines[i].strip().split(' --> ')
-            if len(times) == 2 and i+1 < len(lines):
-                try:
-                    h, m, s = times[0].split(':')
-                    start_sec = float(h)*3600 + float(m)*60 + float(s)
-                    h, m, s = times[1].split(':')
-                    end_sec = float(h)*3600 + float(m)*60 + float(s)
-                    if lines[i+1].strip():
-                        words_data.append((start_sec, end_sec, lines[i+1].strip()))
-                except: continue
+        content = f.read()
+        
+    blocks = re.findall(r'(\d{2}:\d{2}:\d{2}[,\.]\d{3}) --> (\d{2}:\d{2}:\d{2}[,\.]\d{3})\n(.*?)(?=\n\n|\Z)', content, re.DOTALL)
+    
+    for start_str, end_str, text in blocks:
+        text = text.replace('\n', ' ').strip()
+        if not text: continue
+        
+        def to_sec(t_str):
+            t_str = t_str.replace(',', '.')
+            h, m, s = t_str.split(':')
+            return float(h)*3600 + float(m)*60 + float(s)
+            
+        start_sec = to_sec(start_str)
+        end_sec = to_sec(end_str)
+        
+        words = text.split()
+        if not words: continue
+        
+        # टाइम को शब्दों के बीच बराबर बाँट दें
+        duration_per_word = (end_sec - start_sec) / len(words)
+        
+        curr_time = start_sec
+        for word in words:
+            clean_word = word.replace("'", "").replace(":", r"\:")
+            words_data.append((curr_time, curr_time + duration_per_word, clean_word))
+            curr_time += duration_per_word
+            
     return words_data
 
 def process_single_clip(input_path, output_path, index, story_text, global_vid_color):
@@ -80,17 +87,12 @@ def process_single_clip(input_path, output_path, index, story_text, global_vid_c
     
     scale_filter = "scale=2160:3840:force_original_aspect_ratio=increase,crop=2160:3840,setsar=1,format=yuv420p,fps=30"
     base_filter = f"{scale_filter},eq=contrast=1.05:saturation=1.1"
-
-    # रैंडम एनीमेशन पोजीशन
     vid_y_pos = random.choice(['h-450', 'h-500', 'h-600', 'h-400'])
 
-    # 🔠 वर्ड-बाय-वर्ड सबटाइटल (स्क्रीनशॉट स्टाइल: No Box, Only Shadow & Border)
-    words_data = parse_vtt(vtt_path)
+    # 🔠 वर्ड-बाय-वर्ड सबटाइटल लगाना
+    words_data = parse_vtt_to_words(vtt_path)
     for start_sec, end_sec, word in words_data:
-        clean_word = word.replace("'", "").replace(":", r"\:")
-        if clean_word:
-            # 🎯 FIX: box=1 हटा दिया गया है, borderw=6 और shadowx=6 लगा दिया गया है (स्क्रीनशॉट जैसा)
-            base_filter += f",drawtext=fontfile={FONT_PATH}:text='{clean_word}':fontcolor={global_vid_color}:bordercolor=black@0.9:borderw=6:shadowcolor=black@0.8:shadowx=6:shadowy=6:fontsize=160:x=(w-text_w)/2:y={vid_y_pos}:enable='between(t,{start_sec},{end_sec})'"
+        base_filter += f",drawtext=fontfile={FONT_PATH}:text='{word}':fontcolor={global_vid_color}:bordercolor=black@0.9:borderw=6:shadowcolor=black@0.8:shadowx=6:shadowy=6:fontsize=160:x=(w-text_w)/2:y={vid_y_pos}:enable='between(t,{start_sec},{end_sec})'"
 
     # 📌 रैंडम पॉप-अप (LIKE & SUBSCRIBE)
     num_popups = random.randint(1, 3)
@@ -105,8 +107,24 @@ def process_single_clip(input_path, output_path, index, story_text, global_vid_c
     else:
         cmd = ["ffmpeg", "-y", "-i", input_path, "-vf", base_filter, "-c:v", "libx264", "-pix_fmt", "yuv420p", "-crf", "18", "-preset", "fast", "-ar", "44100", output_path]
         subprocess.run(cmd, check=True)
-    
     return output_path
+
+def add_bgm_to_final(video_path):
+    if not os.path.exists(BGM_DIR): return video_path
+    bgms = glob.glob(os.path.join(BGM_DIR, "*.mp3"))
+    if not bgms: return video_path
+    
+    random_bgm = random.choice(bgms)
+    final_output = os.path.join(OUTPUT_DIR, "Final_4K_Monetizable_Short.mp4")
+    
+    print(f"🎵 Adding Background Music: {random_bgm}")
+    cmd = [
+        "ffmpeg", "-y", "-i", video_path, "-stream_loop", "-1", "-i", random_bgm,
+        "-filter_complex", "[0:a]volume=1.0[main]; [1:a]volume=0.15[bgm]; [main][bgm]amix=inputs=2:duration=first:dropout_transition=2[a_out]",
+        "-map", "0:v", "-map", "[a_out]", "-c:v", "copy", "-c:a", "aac", final_output
+    ]
+    subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    return final_output
 
 def main():
     prompts = {}
@@ -118,35 +136,35 @@ def main():
 
     video_files = sorted([os.path.join(r, f) for r, d, files in os.walk(INPUT_DIR) for f in files if f.endswith(".mp4")], key=lambda x: natural_sort_key(os.path.basename(x)))
     
-    # 🎯 1. हर वीडियो के लिए एक रैंडम कलर चुनें (जो पूरी वीडियो में सेम रहेगा)
     GLOBAL_VID_COLOR = random.choice(NEON_COLORS)
     print(f"🎨 Selected Text Color for this Video: {GLOBAL_VID_COLOR}")
 
     processed_clips = []
-    
     for idx, v_path in enumerate(video_files, 1):
         out_path = os.path.join(OUTPUT_DIR, f"clip_{idx}.mp4")
         process_single_clip(v_path, out_path, idx, prompts.get(idx, ""), GLOBAL_VID_COLOR)
         processed_clips.append(out_path)
 
-    # 🎬 2. एकदम लास्ट में (Outro) आपकी फेस क्लिप घुसेगी (रैंडम फ़िल्टर के साथ)
+    # 🎬 एकदम लास्ट में (Outro) आपकी फेस क्लिप घुसेगी
     face_clip = get_random_face_clip()
     if face_clip:
         print("😎 Inserting Random Human Face Clip at the END!")
         processed_clips.append(face_clip)
 
-    # ✂️ 3. वीडियो मर्ज करना (No Black Screen)
     list_path = "list.txt"
     with open(list_path, "w") as f:
         for clip in processed_clips:
             f.write(f"file '{clip}'\n")
             
-    final_output = os.path.join(OUTPUT_DIR, "Final_4K_Monetizable_Short.mp4")
-    cmd = ["ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", list_path, "-c", "copy", final_output]
+    merged_video = os.path.join(OUTPUT_DIR, "merged_temp.mp4")
+    cmd = ["ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", list_path, "-c", "copy", merged_video]
     subprocess.run(cmd, check=True)
 
-    if os.path.exists(final_output):
-        print(f"🎉 MASTERPIECE GENERATED: {final_output}")
+    # 🎵 लास्ट में बैकग्राउंड म्यूजिक (BGM) लगाना
+    final_with_bgm = add_bgm_to_final(merged_video)
+    
+    if os.path.exists(final_with_bgm):
+        print(f"🎉 MASTERPIECE GENERATED: {final_with_bgm}")
 
 if __name__ == "__main__":
     main()
