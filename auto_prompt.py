@@ -1,7 +1,7 @@
 import os
 import sys
 import math
-import google.generativeai as genai
+from google import genai
 
 STORY_FILE = "story.txt"
 PROMPT_FILE = "prompts.txt"
@@ -16,15 +16,11 @@ def generate_ai_script(topic):
         print("❌ GEMINI_API_KEY नहीं मिली! कृपया GitHub Secrets में ऐड करें।")
         sys.exit(1)
 
-    # Google Gemini AI सेटअप
-    genai.configure(api_key=GEMINI_API_KEY)
-    model = genai.GenerativeModel('gemini-1.5-flash')
-
     target_scenes = max(3, math.ceil(VIDEO_DURATION / 5))
     
     print(f"⏱️ Video Duration: {VIDEO_DURATION} Seconds")
     print(f"🎬 Target Scenes: {target_scenes} Scenes (5 sec each)")
-    print(f"🚀 Google Gemini AI कहानी और प्रॉम्प्ट्स सोच रहा है...\nTopic: '{topic}'")
+    print(f"🚀 Google Gemini 2.0 AI कहानी और प्रॉम्प्ट्स सोच रहा है...\nTopic: '{topic}'")
     
     master_prompt = f"""You are an elite Hollywood scriptwriter, psychological hook expert, and Midjourney Prompt Engineer.
     
@@ -42,7 +38,15 @@ def generate_ai_script(topic):
     """
     
     try:
-        response = model.generate_content(master_prompt)
+        # यहाँ हमने बिल्कुल नया Google GenAI क्लाइंट यूज़ किया है
+        client = genai.Client(api_key=GEMINI_API_KEY)
+        
+        # सबसे लेटेस्ट और फास्ट मॉडल: gemini-2.0-flash
+        response = client.models.generate_content(
+            model='gemini-2.0-flash',
+            contents=master_prompt
+        )
+        
         output = response.text.replace("```text", "").replace("```", "").strip()
         
         valid_lines = [line.strip() for line in output.split('\n') if '|' in line]
@@ -80,7 +84,7 @@ def process_stories():
         print("⚠️ AI स्क्रिप्ट नहीं बना पाया।")
         sys.exit(1)
 
-    print("\n✅ Gemini AI Generated Script & Prompts:\n" + ai_output + "\n")
+    print("\n✅ Gemini 2.0 Generated Script & Prompts:\n" + ai_output + "\n")
 
     with open(PROMPT_FILE, "w", encoding="utf-8") as f:
         f.write(ai_output + "\n")
