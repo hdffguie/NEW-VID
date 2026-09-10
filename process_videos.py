@@ -5,106 +5,102 @@ import shutil
 
 INPUT_DIR = "all_downloaded_videos"
 OUTPUT_DIR = "final_output"
-PROMPTS_FILE = "prompts.txt"
-BGM_FILE = "bgm.mp3" 
-
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 def natural_sort_key(s):
     return [int(text) if text.isdigit() else text.lower() for text in re.split(r'(\d+)', s)]
 
-def read_story_prompts():
-    story_lines = {}
-    if not os.path.exists(PROMPTS_FILE): return story_lines
-    with open(PROMPTS_FILE, "r", encoding="utf-8") as f:
-        lines = f.readlines()
-    for idx, line in enumerate(lines, start=1):
-        parts = line.split("|")
-        if len(parts) >= 3: story_lines[idx] = parts[2].strip()
-    return story_lines
-
 def get_duration(file_path):
     try:
         cmd = ["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", file_path]
         return float(subprocess.check_output(cmd).decode().strip())
-    except Exception: return 4.0
+    except: return 4.0
 
 def generate_tts(text, index):
     audio_path = os.path.join(OUTPUT_DIR, f"audio_{index}.mp3")
+    # 🎤 एकदम क्लियर और पतली सिनेमैटिक आवाज़ (Swara)
     cmd = [
-        "edge-tts", 
-        "--voice", "hi-IN-MadhurNeural", 
-        "--rate=+20%", "--pitch=-15Hz",
-        "--text", text, 
-        "--write-media", audio_path
+        "edge-tts", "--voice", "hi-IN-SwaraNeural", 
+        "--rate=+5%", "--pitch=+12Hz", 
+        "--text", text, "--write-media", audio_path
     ]
-    try:
-        subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        return audio_path
-    except Exception: return None
+    subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    return audio_path
 
-def polish_and_sync_clip(input_path, output_path, index, story_text):
+def process_single_clip(input_path, output_path, index, story_text):
     audio_path = generate_tts(story_text, index) if story_text else None
+    
+    # 🎥 4K Vertical + 30fps फिक्स (ताकि क्रॉसफ़ेड में एरर न आए)
+    HQ_SCALE = "scale=2160:3840:flags=lanczos,unsharp=5:5:1.5:5:5:0.0,fps=30"
 
     if audio_path and os.path.exists(audio_path):
-        v_dur = get_duration(input_path) or 4.0
-        a_dur = get_duration(audio_path) or 4.0
-
-        v_pts_factor = a_dur / v_dur 
-        fade_out_start = a_dur - 0.4  # वीडियो खत्म होने से 0.4 सेकंड पहले फेड-आउट शुरू होगा
-        if fade_out_start < 0: fade_out_start = 0
-
-        # 4K Vertical + Fade in/out
-        HQ_SCALE = f"scale=2160:3840:flags=lanczos,unsharp=5:5:1.5:5:5:0.0,fade=t=in:st=0:d=0.3,fade=t=out:st={fade_out_start:.2f}:d=0.4"
-
-        # ध्यान दें: यहाँ ओरिजिनल वीडियो का ऑडियो म्यूट कर दिया गया है (सिर्फ 1:a मैप किया है)
-        filter_complex = f"[0:v]setpts={v_pts_factor:.4f}*PTS,{HQ_SCALE}[v_scaled]"
-        cmd = ["ffmpeg", "-y", "-i", input_path, "-i", audio_path, "-filter_complex", filter_complex, 
-               "-map", "[v_scaled]", "-map", "1:a", "-c:v", "libx264", "-crf", "16", "-preset", "slow", "-c:a", "aac", output_path]
+        v_dur = get_duration(input_path)
+        a_dur = get_duration(audio_path)
+        v_pts_factor = (a_dur / v_dur) if v_dur > 0 else 1
+        
+        # ओरिजिनल साउंड इफ़ेक्ट (20% वॉल्यूम) और AI आवाज़ (150% वॉल्यूम) को मिक्स किया है
+        filter_complex = (
+            f"[0:v]setpts={v_pts_factor:.4f}*PTS,{HQ_SCALE}[v_out]; "
+            f"[0:a]volume=0.2[orig_a]; [1:a]volume=1.5[tts_a]; "
+            f"[orig_a][tts_a]amix=inputs=2:duration=longest:weights=1 1[a_out]"
+        )
+        cmd = ["ffmpeg", "-y", "-i", input_path, "-i", audio_path, "-filter_complex", filter_complex,
+               "-map", "[v_out]", "-map", "[a_out]", "-c:v", "libx264", "-crf", "18", "-preset", "fast", "-c:a", "aac", output_path]
     else:
-        HQ_SCALE = "scale=2160:3840:flags=lanczos,unsharp=5:5:1.5:5:5:0.0,fade=t=in:st=0:d=0.3,fade=t=out:st=3.6:d=0.4"
-        cmd = ["ffmpeg", "-y", "-i", input_path, "-vf", HQ_SCALE, 
-               "-c:v", "libx264", "-crf", "16", "-preset", "slow", output_path]
+        cmd = ["ffmpeg", "-y", "-i", input_path, "-vf", HQ_SCALE, "-c:v", "libx264", "-crf", "18", "-preset", "fast", output_path]
+    
+    subprocess.run(cmd, check=True)
+    return output_path
 
-    try:
-        subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        print(f"✨ Synced, Muted Original, Faded & Polished 4K: {os.path.basename(input_path)}")
-    except subprocess.CalledProcessError:
-        shutil.copy(input_path, output_path)
+def merge_with_crossfade(clips):
+    if not clips: return None
+    merged_video = clips[0]
+    
+    for i in range(1, len(clips)):
+        next_video = clips[i]
+        dur1 = get_duration(merged_video)
+        offset = max(0, dur1 - 1.0) # 1 सेकंड का ओवरलैप (एक के ऊपर एक)
+        
+        temp_out = os.path.join(OUTPUT_DIR, f"temp_merge_{i}.mp4")
+        filter_complex = (
+            f"[0:v][1:v]xfade=transition=fade:duration=1:offset={offset}[v_out]; "
+            f"[0:a][1:a]amix=inputs=2:duration=longest[a_out]"
+        )
+        cmd = [
+            "ffmpeg", "-y", "-i", merged_video, "-i", next_video, 
+            "-filter_complex", filter_complex, 
+            "-map", "[v_out]", "-map", "[a_out]", 
+            "-c:v", "libx264", "-crf", "18", "-preset", "fast", "-c:a", "aac", temp_out
+        ]
+        subprocess.run(cmd, check=True)
+        merged_video = temp_out
+        print(f"🔄 Crossfaded Clip {i+1}")
+        
+    return merged_video
 
 def main():
-    if not os.path.exists(INPUT_DIR): return
-    story_lines = read_story_prompts()
-    video_files = [os.path.join(root, f) for root, dirs, files in os.walk(INPUT_DIR) for f in files if f.endswith(".mp4")]
+    prompts = {}
+    if os.path.exists("prompts.txt"):
+        with open("prompts.txt", "r", encoding="utf-8") as f:
+            for idx, line in enumerate(f.readlines(), 1):
+                parts = line.split("|")
+                if len(parts) >= 3: prompts[idx] = parts[2].strip()
 
-    if not video_files: return
-    video_files.sort(key=lambda x: natural_sort_key(os.path.basename(x)))
+    video_files = sorted([os.path.join(r, f) for r, d, files in os.walk(INPUT_DIR) for f in files if f.endswith(".mp4")], key=lambda x: natural_sort_key(os.path.basename(x)))
+    
+    processed_clips = []
+    for idx, v_path in enumerate(video_files, 1):
+        out_path = os.path.join(OUTPUT_DIR, f"clip_{idx}.mp4")
+        process_single_clip(v_path, out_path, idx, prompts.get(idx, ""))
+        processed_clips.append(out_path)
 
-    polished_files = []
-    for idx, v_path in enumerate(video_files, start=1):
-        out_path = os.path.join(OUTPUT_DIR, f"processed_{idx}.mp4")
-        polish_and_sync_clip(v_path, out_path, idx, story_lines.get(idx, ""))
-        polished_files.append(out_path)
-
-    concat_list_path = os.path.join(OUTPUT_DIR, "concat_list.txt")
-    with open(concat_list_path, "w", encoding="utf-8") as f:
-        for p_file in polished_files:
-            f.write(f"file '{os.path.basename(p_file)}'\n")
-
-    temp_movie_path = os.path.join(OUTPUT_DIR, "Temp_Movie.mp4")
-    subprocess.run(["ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", concat_list_path, "-c", "copy", temp_movie_path], check=True)
-    final_movie_path = os.path.join(OUTPUT_DIR, "Full_Cinematic_Story.mp4")
-
-    if os.path.exists(BGM_FILE):
-        bgm_cmd = [
-            "ffmpeg", "-y", "-i", temp_movie_path, "-stream_loop", "-1", "-i", BGM_FILE,
-            "-filter_complex", "[1:a]volume=0.10[bgm]; [0:a][bgm]amix=inputs=2:duration=first[mixed_a]; [mixed_a]volume=1.5[final_a]",
-            "-map", "0:v", "-map", "[final_a]", "-c:v", "copy", "-c:a", "aac", "-shortest", final_movie_path
-        ]
-        subprocess.run(bgm_cmd, check=True)
-        os.remove(temp_movie_path)
-    else:
-        os.rename(temp_movie_path, final_movie_path)
+    print("🎬 Starting Crossfade Merging...")
+    final_merged = merge_with_crossfade(processed_clips)
+    
+    if final_merged:
+        final_dest = os.path.join(OUTPUT_DIR, "Final_Cinematic_Movie.mp4")
+        os.rename(final_merged, final_dest)
+        print("🎉 Movie Ready with Crossfade!")
 
 if __name__ == "__main__":
     main()
