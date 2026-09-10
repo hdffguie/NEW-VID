@@ -17,21 +17,21 @@ def generate_ai_script(topic):
 
     target_scenes = max(3, math.ceil(VIDEO_DURATION / 5))
     
-    # 🎯 FIX: यहाँ AI को "Sound Effects" वाली लाइन जोड़ने को कहा गया है।
-    master_prompt = f"""You are a viral Gen-Z stand-up comedian and elite meme creator.
+    # 🎯 FIX: No 3D, Only Real Humans and Realistic Photography
+    master_prompt = f"""You are a viral Gen-Z stand-up comedian and elite scriptwriter.
     
-    Task: Write a HILARIOUS, extremely relatable Hindi comedy short story based on: "{topic}".
+    Task: Write a HILARIOUS, relatable Hindi comedy short story based on: "{topic}".
     
-    CRITICAL RULES (FOLLOW STRICTLY OR SYSTEM WILL CRASH):
+    CRITICAL RULES (FOLLOW STRICTLY):
     1. EXACT LENGTH: Generate EXACTLY {target_scenes} lines. Not 1 less, not 1 more.
     2. FORMAT: Every single line MUST have exactly 4 parts separated by the pipe (|) symbol.
     3. THE HOOK: The FIRST line MUST be a highly relatable, funny setup.
     4. HINDI AUDIO: Short Hindi sentences (10-14 words).
-    5. IMAGE PROMPT: Funny 3D Pixar/Caricature style, EXAGGERATED facial expressions, colorful and bright.
-    6. VIDEO PROMPT: Short motion prompt for AI video generation. YOU MUST ADD THIS EXACT TEXT AT THE END OF EVERY VIDEO PROMPT: ", no voice, no background music, only high quality sound effects".
+    5. IMAGE PROMPT: Hyper-realistic, cinematic photography, real humans, highly detailed 8k. STRICTLY NO 3D, NO CARTOON, NO ANIMATION. Exaggerated but realistic funny expressions.
+    6. VIDEO PROMPT: Short motion prompt for AI video generation (e.g., 'Cinematic slow zoom').
     
     Format Example (Line by Line):
-    Hindi text | Hindi text | Funny 3D Pixar Image Prompt | English Video Prompt, no voice, no background music, only high quality sound effects
+    Hindi text | Hindi text | Realistic portrait of an angry Indian dad looking at phone, cinematic lighting | Cinematic slow zoom in
     """
     
     try:
@@ -42,8 +42,7 @@ def generate_ai_script(topic):
         for model_name in models:
             try:
                 response = client.models.generate_content(model=model_name, contents=master_prompt)
-                if response and response.text:
-                    break
+                if response and response.text: break
             except: pass
 
         if not response or not hasattr(response, 'text') or not response.text: return None
@@ -53,7 +52,6 @@ def generate_ai_script(topic):
         if len(valid_lines) == 0: return None
             
         return "\n".join(valid_lines[:target_scenes])
-
     except Exception as e:
         return None
 
