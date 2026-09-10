@@ -17,21 +17,26 @@ def generate_ai_script(topic):
 
     target_scenes = max(3, math.ceil(VIDEO_DURATION / 5))
     
-    # 🎯 FIX: No 3D, Only Real Humans and Realistic Photography
-    master_prompt = f"""You are a viral Gen-Z stand-up comedian and elite scriptwriter.
+    print(f"⏱️ Video Duration: {VIDEO_DURATION} Seconds")
+    print(f"🎬 Target Scenes: {target_scenes} Scenes (5 sec each)")
+    print(f"🚀 Google Gemini AI कहानी (Narrator Style) सोच रहा है...\nTopic: '{topic}'")
     
-    Task: Write a HILARIOUS, relatable Hindi comedy short story based on: "{topic}".
+    # 🎯 FIX: AI को Narrator बनाया गया है और Numbers/Timestamps लिखने से सख्त मना किया गया है।
+    master_prompt = f"""You are an elite Professional Hindi Storyteller and Narrator.
     
-    CRITICAL RULES (FOLLOW STRICTLY):
+    Task: Write a highly engaging, emotional, and realistic Hindi short story based on: "{topic}".
+    
+    CRITICAL RULES (FOLLOW STRICTLY OR SYSTEM WILL CRASH):
     1. EXACT LENGTH: Generate EXACTLY {target_scenes} lines. Not 1 less, not 1 more.
     2. FORMAT: Every single line MUST have exactly 4 parts separated by the pipe (|) symbol.
-    3. THE HOOK: The FIRST line MUST be a highly relatable, funny setup.
-    4. HINDI AUDIO: Short Hindi sentences (10-14 words).
-    5. IMAGE PROMPT: Hyper-realistic, cinematic photography, real humans, highly detailed 8k. STRICTLY NO 3D, NO CARTOON, NO ANIMATION. Exaggerated but realistic funny expressions.
-    6. VIDEO PROMPT: Short motion prompt for AI video generation (e.g., 'Cinematic slow zoom').
+    3. NARRATOR TONE: You must tell a story like a narrator. DO NOT use Gen-Z slang, memes, or stand-up comedy style.
+    4. PURE TEXT ONLY: DO NOT write any timestamps (like 00:00:00), numbering, or English words in the Hindi text. Only write pure Hindi narration.
+    5. HINDI AUDIO: Short Hindi sentences (10-14 words) for perfect pacing.
+    6. IMAGE PROMPT: Hyper-realistic, cinematic photography, real humans, highly detailed 8k. STRICTLY NO 3D, NO CARTOON, NO ANIMATION.
+    7. VIDEO PROMPT: Short motion prompt for AI video. YOU MUST ADD THIS EXACT TEXT AT THE END OF EVERY VIDEO PROMPT: ", no voice, no background music, only high quality sound effects".
     
     Format Example (Line by Line):
-    Hindi text | Hindi text | Realistic portrait of an angry Indian dad looking at phone, cinematic lighting | Cinematic slow zoom in
+    Hindi text | Hindi text | Realistic portrait of an old Indian man in a dark room, cinematic lighting | Cinematic slow zoom in, no voice, no background music, only high quality sound effects
     """
     
     try:
@@ -41,18 +46,29 @@ def generate_ai_script(topic):
         response = None
         for model_name in models:
             try:
+                print(f"🔍 Trying Model: {model_name}...")
                 response = client.models.generate_content(model=model_name, contents=master_prompt)
-                if response and response.text: break
-            except: pass
+                if response and response.text:
+                    print(f"✅ Success with {model_name}")
+                    break
+            except Exception as e: 
+                print(f"⚠️ {model_name} failed: {e}")
 
-        if not response or not hasattr(response, 'text') or not response.text: return None
+        if not response or not hasattr(response, 'text') or not response.text: 
+            print("❌ AI ने खाली जवाब दिया।")
+            return None
             
         output = response.text.replace("```text", "").replace("```", "").strip()
         valid_lines = [line.strip() for line in output.split('\n') if '|' in line]
-        if len(valid_lines) == 0: return None
+        
+        if len(valid_lines) == 0:
+            print("❌ AI ने फॉर्मेट फॉलो नहीं किया।")
+            return None
             
         return "\n".join(valid_lines[:target_scenes])
+
     except Exception as e:
+        print(f"❌ Error: {e}")
         return None
 
 def process_stories():
@@ -71,10 +87,12 @@ def process_stories():
         f.write(ai_output + "\n")
 
     with open(METADATA_FILE, "w", encoding="utf-8") as f:
-        f.write(f"Title: {current_topic} - Comedy Shorts\nDescription: Watch till end! 😂\nTags: shorts, comedy, relatable")
+        f.write(f"Title: {current_topic} - True Story #shorts #story\nDescription: Watch till the end to know the truth!\nTags: shorts, true story, realistic, emotional")
 
     with open(STORY_FILE, "w", encoding="utf-8") as f:
         f.write("\n".join(topics[1:]) + "\n" if len(topics) > 1 else "")
+        
+    print(f"🎉 Successfully processed topic: {current_topic}")
 
 if __name__ == "__main__":
     process_stories()
