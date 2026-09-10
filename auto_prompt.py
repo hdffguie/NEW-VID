@@ -12,10 +12,8 @@ def generate_prompts_and_metadata():
 
     sentences = [s.strip() for s in content.replace("\n", " ").split(".") if s.strip()]
     
-    # 🎥 पहली क्लिप के लिए ड्रामेटिक कैमरा
+    # 🎥 कैमरा मोशन्स
     first_clip_motion = "dramatic 360-degree slow pan, upward camera sweep, high tension"
-    
-    # 🎥 बाकी क्लिप्स के लिए रैंडम डायनामिक मोशन्स (हर 2-3 सेकंड में व्यूअर का ध्यान रोकने के लिए)
     random_motions = [
         "slow punchy zoom in, high focus",
         "smooth slow zoom out, revealing details",
@@ -24,24 +22,28 @@ def generate_prompts_and_metadata():
         "macro focus with slow forward camera drift"
     ]
 
+    # 🔊 मास्टर ऑडियो प्रॉम्प्ट (यह हर प्रॉम्प्ट में जाएगा ही जाएगा)
+    MASTER_AUDIO_PROMPT = "STRICTLY NO HUMAN VOICE, NO BACKGROUND MUSIC. Only high quality cinematic sound effects, whooshes, and environmental impacts."
+
     translator = GoogleTranslator(source='auto', target='en')
     prompts = []
 
     for idx, sentence in enumerate(sentences, 1):
         translated = translator.translate(sentence)
         
-        # पहली क्लिप को ख़ास रखें, बाकी को रैंडम
+        # पहली क्लिप के लिए अलग मोशन, बाकी के लिए रैंडम
         motion = first_clip_motion if idx == 1 else random.choice(random_motions)
         
-        # 4K मास्टर प्रॉम्प्ट स्ट्रक्चर
-        final_prompt = f"{translated}, {motion}, ultra-realistic, cinematic lighting, 8k resolution, highly detailed"
+        # 🚀 फाइनल प्रॉम्प्ट: कहानी + कैमरा मोशन + ऑडियो नियम + 8K क्वालिटी
+        final_prompt = f"{translated}, {motion}, {MASTER_AUDIO_PROMPT}, ultra-realistic, cinematic lighting, 8k resolution, highly detailed"
+        
         prompts.append(f"{idx} | {sentence} | {final_prompt}")
 
     with open("prompts.txt", "w", encoding="utf-8") as f:
         f.write("\n".join(prompts))
-    print("✅ prompts.txt सफलतापूर्वक बन गई!")
+    print("✅ prompts.txt सफलतापूर्वक बन गई (No Voice/Music Rule Applied)!")
 
-    # 🚀 YouTube 100% SEO Metadata Generator (Title, Description, Hashtags)
+    # 🚀 YouTube SEO Metadata Generator
     first_sentence = sentences[0] if sentences else "Viral Story"
     metadata_content = f"""📌 YOUTUBE SEO METADATA
     
