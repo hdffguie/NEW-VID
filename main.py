@@ -11,7 +11,8 @@ PROMPT_FILE = "prompts.txt"
 os.makedirs(SAVE_FOLDER, exist_ok=True)
 
 def send_telegram_photo(photo_path, caption=""):
-    if not BOT_TOKEN or not CHAT_ID: return
+    if not BOT_TOKEN or not CHAT_ID: 
+        return
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendPhoto"
     try:
         if os.path.exists(photo_path):
@@ -45,11 +46,9 @@ async def generate_single_image(machine_id, prompt_text, max_retries=4):
             page = await context.new_page()
             
             try:
-                # Bing / Image Creator Site URL
                 await page.goto("https://www.bing.com/images/create", wait_until="domcontentloaded", timeout=60000)
                 await asyncio.sleep(3)
 
-                # Search/Prompt input fill
                 prompt_input = page.locator("input[name='q'], textarea[name='q']").first
                 if await prompt_input.is_visible(timeout=5000):
                     await prompt_input.fill(prompt_text)
@@ -63,13 +62,12 @@ async def generate_single_image(machine_id, prompt_text, max_retries=4):
 
                 print(f"⏳ Waiting for image generation on Machine {machine_id}...")
                 
-                # Image element waiting
                 img_element = page.locator("div.img_pt img, m_ic_img img, img.mimg").first
                 await img_element.wait_for(state="visible", timeout=90000)
                 
                 src = await img_element.get_attribute("src")
                 if not src or not src.startswith("http"):
-                    raise Exception("Image URL invalid or not found")
+                    raise Exception("Image URL not found or invalid")
 
                 img_data = requests.get(src, timeout=30).content
                 with open(out_img_path, "wb") as f:
@@ -83,8 +81,8 @@ async def generate_single_image(machine_id, prompt_text, max_retries=4):
 
             except Exception as e:
                 print(f"⚠️ Attempt {attempt} Failed for Image {machine_id}: {e}")
-                await browser.close() # Clean Cut Chrome / Close Browser
-                await asyncio.sleep(5) # Fresh start gap
+                await browser.close()
+                await asyncio.sleep(5)
                 
     print(f"❌ All {max_retries} attempts failed for Image #{machine_id}.")
     return False
