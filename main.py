@@ -77,29 +77,30 @@ async def generate_single_image(machine_id, prompt_text, max_retries=3):
                 else:
                     await prompt_input.press("Enter")
 
-                print(f"⏳ Monitoring generation and waiting for Exact Download button on Machine {machine_id}...")
+                print(f"⏳ Waiting for image generation to complete on Machine {machine_id}...")
                 
-                # 4. exact selector from your HTML
-                exact_download_btn = page.locator("button.acf-button-standard__btn[title='Download'], button[title='Download']").first
+                # 4. "We are generating..." टेक्स्ट के गायब होने का इंतज़ार करें
+                loader_text = page.locator("text='We are generating the image for you...'")
+                try:
+                    await loader_text.wait_for(state="detached", timeout=90000)
+                    print("✅ Image generation completed (loader disappeared).")
+                except Exception:
+                    print("⚠️ Loader timeout or already hidden, proceeding to check download button...")
+
+                # 5. Enabled Download Button का इंतज़ार करें
+                download_btn = page.locator("button.acf-button-standard__btn[title='Download']:not([disabled]), button[title='Download']:not([disabled])").first
                 
-                for second in range(5, 95, 5):
-                    await asyncio.sleep(5)
-                    await capture_and_send_screenshot(page, machine_id, f"Generating... ({second}s passed)")
-                    
-                    if await exact_download_btn.is_visible():
-                        print(f"🎯 Exact Download button detected at {second} seconds!")
-                        break
+                await download_btn.wait_for(state="visible", timeout=30000)
+                await capture_and_send_screenshot(page, machine_id, "Image Generated & Download Ready")
 
-                await exact_download_btn.wait_for(state="visible", timeout=10000)
-
-                # 5. Native Download
+                # 6. Trigger Native Download
                 async with page.expect_download(timeout=30000) as download_info:
-                    await exact_download_btn.click()
+                    await download_btn.click()
                 
                 download = await download_info.value
                 await download.save_as(out_img_path)
 
-                print(f"✅ Image #{machine_id} downloaded successfully using Exact Button!")
+                print(f"✅ Image #{machine_id} downloaded successfully!")
                 send_telegram_photo(out_img_path, f"🎉 Final Image #{machine_id} Downloaded!")
                 
                 await browser.close()
