@@ -22,8 +22,9 @@ jobs:
         path: prompts.txt
     - id: set-matrix
       run: |
-        count=$(wc -l < prompts.txt)
-        matrix_json=$(python3 -c "import json; print(json.dumps(list(range(1, int($count) + 1))))")
+        count=$(grep -c '^' prompts.txt || echo 0)
+        if [ "$count" -eq 0 ]; then exit 1; fi
+        matrix_json=$(python3 -c "import json; print(json.dumps(list(range(1, $count + 1))))")
         echo "matrix=$matrix_json" >> $GITHUB_OUTPUT
 
   generate-images:
@@ -31,7 +32,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
-      max-parallel: 5  # इमेज के लिए 5 मशीनें
+      max-parallel: 5
       matrix:
         machine_id: ${{ fromJson(needs.prepare-prompts.outputs.matrix) }}
     steps:
@@ -46,13 +47,11 @@ jobs:
     - uses: actions/download-artifact@v4
       with:
         name: text-prompts
-    - name: Run Image Generator with Auto-Retry
+    - name: Run Image Generator
       env:
         BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
         CHAT_ID: ${{ secrets.CHAT_ID }}
-      # 🔄 ऑटो-एरर हैंडलिंग (3 बार ट्राई करेगा)
-      run: |
-        for i in 1 2 3; do python main.py ${{ matrix.machine_id }} && break || sleep 10; done
+      run: python main.py ${{ matrix.machine_id }}
     - uses: actions/upload-artifact@v4
       if: always()
       with:
@@ -64,7 +63,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
-      max-parallel: 2  # ⚠️ वीडियो के लिए सिर्फ़ 2 मशीनें
+      max-parallel: 2
       matrix:
         machine_id: ${{ fromJson(needs.prepare-prompts.outputs.matrix) }}
     steps:
@@ -84,13 +83,11 @@ jobs:
       with:
         name: bing_image_${{ matrix.machine_id }}
         path: bing_automated_images/
-    - name: Run Video Generator with Auto-Retry
+    - name: Run Video Generator
       env:
         BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
         CHAT_ID: ${{ secrets.CHAT_ID }}
-      # 🔄 वीडियो में भी 3 बार ट्राई करेगा
-      run: |
-        for i in 1 2 3; do python generate_video.py ${{ matrix.machine_id }} && break || sleep 15; done
+      run: python generate_video.py ${{ matrix.machine_id }}
     - uses: actions/upload-artifact@v4
       if: always()
       with:
@@ -100,14 +97,14 @@ jobs:
   post-process-and-zip:
     needs: generate-videos
     runs-on: ubuntu-latest
-    if: always()
     steps:
     - uses: actions/checkout@v4
     - uses: actions/setup-python@v5
       with:
         python-version: '3.10'
-    - run: |
-        sudo apt-get update && sudo apt-get install -y ffmpeg
+    - name: Install FFmpeg and Fonts
+      run: |
+        sudo apt-get update && sudo apt-get install -y ffmpeg fonts-freefont-ttf
         pip install edge-tts deep-translator Pillow
     - uses: actions/download-artifact@v4
       with:
