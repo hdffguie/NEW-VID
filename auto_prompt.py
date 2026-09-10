@@ -1,8 +1,7 @@
 import os
 import sys
-import requests
-import urllib.parse
 import math
+from duckduckgo_search import DDGS
 
 STORY_FILE = "story.txt"
 PROMPT_FILE = "prompts.txt"
@@ -17,7 +16,7 @@ def generate_ai_script(topic):
     
     print(f"⏱️ Video Duration: {VIDEO_DURATION} Seconds")
     print(f"🎬 Target Scenes: {target_scenes} Scenes (5 sec each)")
-    print(f"🤖 AI कहानी और प्रोफेशनल प्रॉम्प्ट्स सोच रहा है...\nTopic: '{topic}'")
+    print(f"🤖 DuckDuckGo AI (GPT-4o) कहानी और प्रॉम्प्ट्स सोच रहा है...\nTopic: '{topic}'")
     
     master_prompt = f"""You are an elite Hollywood scriptwriter, psychological hook expert, and Midjourney Prompt Engineer.
     
@@ -34,19 +33,17 @@ def generate_ai_script(topic):
     Hindi Sentence | Hindi Sentence | English Image Prompt | English Video Prompt
     """
     
-    url = f"https://text.pollinations.ai/{urllib.parse.quote(master_prompt)}"
-    
     try:
-        response = requests.get(url, timeout=90)
-        response.raise_for_status()
-        output = response.text.strip()
+        # यहाँ हम फ्री GPT-4o-mini का इस्तेमाल कर रहे हैं
+        response = DDGS().chat(master_prompt, model='gpt-4o-mini')
         
-        output = output.replace("```text", "").replace("```", "").strip()
+        output = response.replace("```text", "").replace("```", "").strip()
         valid_lines = [line.strip() for line in output.split('\n') if '|' in line]
         
         final_lines = valid_lines[:target_scenes]
         
         if not final_lines:
+            print("❌ AI ने गलत फॉर्मेट में आउटपुट दिया है।")
             return None
             
         return "\n".join(final_lines)
@@ -58,14 +55,14 @@ def generate_ai_script(topic):
 def process_stories():
     if not os.path.exists(STORY_FILE):
         print("❌ story.txt not found!")
-        sys.exit(1)  # पाइपलाइन यहीं रोक देगा
+        sys.exit(1)
 
     with open(STORY_FILE, "r", encoding="utf-8") as f:
         content = f.read().strip()
 
     if not content:
         print("❌ story.txt is empty! Please add some topics in story.txt file.")
-        sys.exit(1)  # पाइपलाइन यहीं रोक देगा
+        sys.exit(1)
 
     topics = [t.strip() for t in content.split("\n") if t.strip()]
     current_topic = topics[0]
@@ -75,7 +72,7 @@ def process_stories():
     
     if not ai_output:
         print("⚠️ AI स्क्रिप्ट नहीं बना पाया। कृपया कोड को दोबारा रन करें।")
-        sys.exit(1)  # पाइपलाइन यहीं रोक देगा
+        sys.exit(1)
 
     print("\n✅ AI Generated Script & Prompts:\n" + ai_output + "\n")
 
