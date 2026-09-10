@@ -2,23 +2,35 @@ name: Automated Image and Video Pipeline
 
 on:
   schedule:
-    - cron: '57 23 * * *'  # 5:27 AM IST (India Time)
-    - cron: '56 14 * * *'  # 8:26 PM IST (India Time)
+    - cron: '57 23 * * *'
+    - cron: '56 14 * * *'
   workflow_dispatch:
     inputs:
-      aspect_ratio:
-        description: 'Choose Video Aspect Ratio'
-        required: true
-        default: '9:16'
-        type: choice
-        options:
-        - '9:16'
-        - '16:9'
       video_duration:
         description: 'Video Length in Seconds (e.g. 15, 30, 60)'
         required: true
         default: '60'
         type: string
+      visual_style:
+        description: 'Visual Style (Image Type)'
+        required: true
+        default: 'Realistic Human'
+        type: choice
+        options:
+        - 'Realistic Human'
+        - '3D Pixar'
+        - '2D Anime'
+      story_genre:
+        description: 'Story Genre (Tone)'
+        required: true
+        default: 'Educational'
+        type: choice
+        options:
+        - 'Educational'
+        - 'Funny'
+        - 'Cartoon'
+        - 'Sad'
+        - 'Horror'
 
 permissions:
   contents: write
@@ -38,6 +50,8 @@ jobs:
         python auto_prompt.py
       env:
         VIDEO_DURATION: ${{ github.event.inputs.video_duration || '60' }}
+        VISUAL_STYLE: ${{ github.event.inputs.visual_style || 'Realistic Human' }}
+        STORY_GENRE: ${{ github.event.inputs.story_genre || 'Educational' }}
         GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
     - name: Commit and Push Updated story.txt
       run: |
@@ -141,7 +155,6 @@ jobs:
     - name: Install FFmpeg, Fonts and Dependencies
       run: |
         sudo apt-get update && sudo apt-get install -y ffmpeg wget
-        # 🎯 FIX: यहाँ मैंने एकदम परमानेंट और 100% वर्किंग फॉन्ट (Hind-Bold) का लिंक लगा दिया है
         wget -q "https://raw.githubusercontent.com/google/fonts/main/ofl/hind/Hind-Bold.ttf" -O NotoSansHindi.ttf
         pip install -r requirements.txt
     - uses: actions/download-artifact@v4
@@ -153,8 +166,6 @@ jobs:
         pattern: video_machine_*
         merge-multiple: true
     - name: Process Video Filters & Audio
-      env:
-        ASPECT_RATIO: ${{ github.event.inputs.aspect_ratio || '9:16' }}
       run: python process_videos.py
     - name: Auto Upload to YouTube
       env:
