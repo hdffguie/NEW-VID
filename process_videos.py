@@ -1,3 +1,11 @@
+# ==============================================================
+# ⚙️ अपनी सेटिंग्स यहाँ खुद सेव करें (MANUAL SETUP)
+# ==============================================================
+MY_VIDEO_DURATION = 15                 # ऑप्शन: 15, 30, 45, 60 (वीडियो कितने सेकंड की बनानी है)
+MY_VISUAL_STYLE = "2D Anime"           # ऑप्शन: "Realistic Human", "3D Pixar", "2D Anime"
+MY_STORY_GENRE = "Cartoon"             # ऑप्शन: "Educational", "Funny", "Cartoon", "Sad", "Horror"
+# ==============================================================
+
 import os
 import subprocess
 import re
@@ -109,10 +117,13 @@ def add_bgm_to_final(video_path):
     
     random_bgm = random.choice(bgms)
     final_output = os.path.join(OUTPUT_DIR, "Final_4K_Monetizable_Short.mp4")
+    
+    # 🚨 यहाँ -shortest जोड़ा गया है ताकि वीडियो खत्म होते ही BGM कट जाए
     cmd = [
         "ffmpeg", "-y", "-i", video_path, "-stream_loop", "-1", "-i", random_bgm,
-        "-filter_complex", "[0:a]volume=1.0[main]; [1:a]volume=0.15[bgm]; [main][bgm]amix=inputs=2:duration=first:dropout_transition=2[a_out]",
-        "-map", "0:v", "-map", "[a_out]", "-c:v", "copy", "-c:a", "aac", "-b:a", "320k", final_output
+        "-filter_complex", "[0:a]volume=1.0[main]; [1:a]volume=0.15[bgm]; [main][bgm]amix=inputs=2:duration=shortest:dropout_transition=2[a_out]",
+        "-map", "0:v", "-map", "[a_out]", "-c:v", "copy", "-c:a", "aac", "-b:a", "320k", 
+        "-shortest", final_output
     ]
     subprocess.run(cmd, check=True)
     return final_output
