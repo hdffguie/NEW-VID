@@ -32,7 +32,7 @@ def generate_ai_script(topic):
     Task: Write a Hindi short story based on: "{topic}".
     
     CRITICAL RULES:
-    1. STORY GENRE: The story MUST be exactly in this tone: {MY_STORY_GENRE}. (If Horror, make it scary. If Funny, make it a meme. If Educational, teach a lesson).
+    1. STORY GENRE: The story MUST be exactly in this tone: {MY_STORY_GENRE}.
     2. VISUAL STYLE: The Image prompt MUST exactly follow this art style: {MY_VISUAL_STYLE}.
     3. CHARACTER CONSISTENCY: Describe the main character's age, clothes, and face in EVERY SINGLE IMAGE PROMPT so the face does not change across scenes.
     4. IMAGE PROMPT LIMIT: The English Image Prompt MUST BE UNDER 400 CHARACTERS. Keep it short and descriptive.
@@ -40,58 +40,45 @@ def generate_ai_script(topic):
     6. DUPLICATE TEXT: Part 1 and Part 2 must be the EXACT SAME short Hindi sentence (Max 8-12 words).
     7. FORMAT: Exactly 4 parts separated by pipe (|).
     8. VIDEO PROMPT: Short motion prompt. ADD THIS EXACTLY AT THE END: ", no voice, no background music, only high quality sound effects".
-    
-    Format Example:
-    Short Hindi Text | Short Hindi Text | {MY_VISUAL_STYLE}, A 25yo man wearing a red shirt, [Action], highly detailed, 8k | Slow cinematic pan, no voice, no background music, only high quality sound effects
     """
     
-    try:
-        client = genai.Client(api_key=GEMINI_API_KEY)
-        # Google के एकदम लेटेस्ट वर्किंग मॉडल्स (जो एरर मैसेज ने खुद सजेस्ट किए हैं)
-        models = ['gemini-3.6-flash', 'gemini-3.5-flash-lite', 'gemini-1.5-flash-latest']
+    client = genai.Client(api_key=GEMINI_API_KEY)
+    models = ['gemini-2.0-flash', 'gemini-3.5-flash-lite', 'gemini-1.5-flash']
+    max_retries = 5  # 5 बार ट्राई करेगा
+    
+    for attempt in range(1, max_retries + 1):
+        print(f"\n🔄 [Attempt {attempt}/{max_retries}] AI से स्क्रिप्ट मांग रहा हूँ...")
         
         for model_name in models:
             try:
                 print(f"👉 Trying Gemini model: {model_name} ...")
-
                 response = client.models.generate_content(
                     model=model_name,
                     contents=master_prompt
                 )
 
-                if not response:
-                    print(f"⚠️ {model_name}: Empty response object")
-                    continue
-
                 text = getattr(response, "text", None)
-
                 if not text:
-                    print(f"⚠️ {model_name}: Empty text response")
                     continue
 
                 output = text.replace("```text", "").replace("```", "").strip()
                 valid_lines = [line.strip() for line in output.split('\n') if '|' in line]
 
-                print(f"✅ {model_name} returned {len(valid_lines)} valid lines")
-
-                if len(valid_lines) == 0:
-                    print("⚠️ AI ने pipe format में output नहीं दिया।")
-                    continue
-
-                return "\n".join(valid_lines[:target_scenes])
+                if len(valid_lines) > 0:
+                    print(f"✅ SUCCESS! {model_name} ने स्क्रिप्ट दे दी।")
+                    return "\n".join(valid_lines[:target_scenes]) # काम पूरा, आगे बढ़ो
 
             except Exception as e:
-                error_msg = str(e)
-                print(f"❌ Model {model_name} failed: {error_msg}")
-                
-                # अगर सर्वर बिजी (503) है, तो 5 सेकंड रुककर अगला ट्राई करे
-                if "503" in error_msg or "High demand" in error_msg:
-                    print("⏳ Server is busy. Waiting 5 seconds before trying next...")
-                    time.sleep(5)
+                print(f"❌ {model_name} फेल हो गया। Error: {e}")
+                print("⏳ 5 सेकंड रुक रहा हूँ...")
+                time.sleep(5)  # 5 सेकंड रुकेगा और अगले मॉडल पर जाएगा
                 continue
+                
+        print("⚠️ इस बार सभी मॉडल फेल हो गए। 5 सेकंड बाद दोबारा पूरी कोशिश करूँगा...")
+        time.sleep(5)
 
-        print("❌ सभी Gemini models fail हो गए।")
-        return None
+    print("❌ 5 बार कोशिश करने के बाद भी स्क्रिप्ट नहीं बन पाई।")
+    return None
 
     except Exception as e:
         print("❌ Main Gemini Error:")
