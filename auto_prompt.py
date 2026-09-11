@@ -43,7 +43,7 @@ def generate_ai_script(topic):
     """
     
     client = genai.Client(api_key=GEMINI_API_KEY)
-    models = ['gemini-2.0-flash', 'gemini-3.5-flash-lite', 'gemini-1.5-flash']
+    models = ['gemini-3.6-flash', 'gemini-3.5-flash-lite', 'gemini-3.4-flash']
     max_retries = 5  # 5 बार ट्राई करेगा
     
     for attempt in range(1, max_retries + 1):
