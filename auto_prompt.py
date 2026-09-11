@@ -1,21 +1,3 @@
-# ==============================================================
-# ⚙️ अपनी सेटिंग्स यहाँ खुद सेव करें (MANUAL SETUP)
-# ==============================================================
-MY_VIDEO_DURATION = 60                 # ऑप्शन: 15, 30, 45, 60 (वीडियो कितने सेकंड की बनानी है)
-MY_VISUAL_STYLE = "2D Anime"    # ऑप्शन: "Realistic Human", "3D Pixar", "2D Anime"
-MY_STORY_GENRE = "Cartoon"         # ऑप्शन: "Educational", "Funny", "Cartoon", "Sad", "Horror"
-# ==============================================================
-
-import os
-import sys
-import math
-from google import genai
-
-STORY_FILE = "story.txt"
-PROMPT_FILE = "prompts.txt"
-METADATA_FILE = "metadata.txt"
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-
 def generate_ai_script(topic):
     if not GEMINI_API_KEY:
         print("❌ GEMINI_API_KEY नहीं मिली!")
@@ -44,9 +26,9 @@ def generate_ai_script(topic):
     Short Hindi Text | Short Hindi Text | {MY_VISUAL_STYLE}, A 25yo man wearing a red shirt, [Action], highly detailed, 8k | Slow cinematic pan, no voice, no background music, only high quality sound effects
     """
     
-        try:
+    try:
         client = genai.Client(api_key=GEMINI_API_KEY)
-        models = ['gemini-2.0-flash', 'gemini-2.0-flash-lite', 'gemini-1.5-flash']
+        models = ['gemini-2.0-flash', 'gemini-3.6-flash-lite', 'gemini-1.5-flash']
         
         for model_name in models:
             try:
