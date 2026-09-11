@@ -47,7 +47,7 @@ def generate_ai_script(topic):
     """
     
     client = genai.Client(api_key=GEMINI_API_KEY)
-    models = ['gemini-2.0-flash', 'gemini-1.5-flash']
+    models = ['gemini-3.6-flash', 'gemini-1.5-flash']
     
     for attempt in range(1, 6):
         print(f"\n🔄 [Attempt {attempt}/5] AI से स्क्रिप्ट मांग रहा हूँ...")
