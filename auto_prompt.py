@@ -44,24 +44,55 @@ def generate_ai_script(topic):
     Short Hindi Text | Short Hindi Text | {MY_VISUAL_STYLE}, A 25yo man wearing a red shirt, [Action], highly detailed, 8k | Slow cinematic pan, no voice, no background music, only high quality sound effects
     """
     
-    try:
+        try:
         client = genai.Client(api_key=GEMINI_API_KEY)
-        models = ['gemini-2.0-flash', 'gemini-3.6-flash', 'gemini-1.5-flash']
+        models = ['gemini-2.0-flash', 'gemini-2.0-flash-lite', 'gemini-1.5-flash']
         
-        response = None
         for model_name in models:
             try:
-                response = client.models.generate_content(model=model_name, contents=master_prompt)
-                if response and response.text: break
-            except: pass
+                print(f"👉 Trying Gemini model: {model_name}")
 
-        if not response or not hasattr(response, 'text') or not response.text: return None
-        output = response.text.replace("```text", "").replace("```", "").strip()
-        valid_lines = [line.strip() for line in output.split('\n') if '|' in line]
-        
-        if len(valid_lines) == 0: return None
-        return "\n".join(valid_lines[:target_scenes])
-    except: return None
+                response = client.models.generate_content(
+                    model=model_name,
+                    contents=master_prompt
+                )
+
+                if not response:
+                    print(f"⚠️ {model_name}: Empty response object")
+                    continue
+
+                text = getattr(response, "text", None)
+
+                if not text:
+                    print(f"⚠️ {model_name}: Empty text response")
+                    print(f"Raw response: {response}")
+                    continue
+
+                output = text.replace("```text", "").replace("```", "").strip()
+                valid_lines = [line.strip() for line in output.split('\n') if '|' in line]
+
+                print(f"✅ {model_name} returned {len(valid_lines)} valid lines")
+
+                if len(valid_lines) == 0:
+                    print("⚠️ AI ने pipe format में output नहीं दिया")
+                    print("AI OUTPUT:")
+                    print(output)
+                    continue
+
+                return "\n".join(valid_lines[:target_scenes])
+
+            except Exception as e:
+                print(f"❌ Model {model_name} failed:")
+                print(e)
+                continue
+
+        print("❌ सभी Gemini models fail हो गए")
+        return None
+
+    except Exception as e:
+        print("❌ Main Gemini Error:")
+        print(e)
+        return None
 
 def process_stories():
     if not os.path.exists(STORY_FILE): sys.exit(1)
