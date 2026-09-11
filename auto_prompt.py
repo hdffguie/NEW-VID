@@ -1,7 +1,7 @@
 # ==============================================================
 # ⚙️ अपनी सेटिंग्स यहाँ खुद सेव करें (MANUAL SETUP)
 # ==============================================================
-MY_VIDEO_DURATION = 60                 # ऑप्शन: 15, 30, 45, 60 (वीडियो कितने सेकंड की बनानी है)
+MY_VIDEO_DURATION = 15                 # ऑप्शन: 15, 30, 45, 60 (वीडियो कितने सेकंड की बनानी है)
 MY_VISUAL_STYLE = "2D Anime"           # ऑप्शन: "Realistic Human", "3D Pixar", "2D Anime"
 MY_STORY_GENRE = "Cartoon"             # ऑप्शन: "Educational", "Funny", "Cartoon", "Sad", "Horror"
 # ==============================================================
@@ -46,7 +46,7 @@ def generate_ai_script(topic):
     
     try:
         client = genai.Client(api_key=GEMINI_API_KEY)
-        models = ['gemini-2.0-flash', 'gemini-2.0-flash-lite', 'gemini-1.5-flash']
+        models = ['gemini-3.6-flash', 'gemini-2.0-flash-lite', 'gemini-1.5-flash']
         
         for model_name in models:
             try:
