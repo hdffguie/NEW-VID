@@ -2,6 +2,7 @@ import os
 import re
 import base64
 import json
+import datetime
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
@@ -28,6 +29,30 @@ def parse_metadata():
             
     return title, description, tags
 
+def get_schedule_time():
+    """यह फंक्शन खुद तय करेगा कि वीडियो सुबह पब्लिश करनी है या शाम को"""
+    utc_now = datetime.datetime.utcnow()
+    ist_now = utc_now + datetime.timedelta(hours=5, minutes=30) # भारत का समय
+
+    # अगर बॉट रात 2:30 बजे (IST) के आस-पास चल रहा है
+    if ist_now.hour == 2:
+        # तो आज सुबह 5:27 AM का शेड्यूल सेट करो
+        target_ist = ist_now.replace(hour=5, minute=27, second=0, microsecond=0)
+        print("🌅 Morning Schedule Detected!")
+    
+    # अगर बॉट रात 3:30 बजे (IST) के आस-पास चल रहा है
+    else:
+        # तो आज शाम 8:26 PM का शेड्यूल सेट करो
+        target_ist = ist_now.replace(hour=20, minute=26, second=0, microsecond=0)
+        print("🌃 Evening Schedule Detected!")
+
+    # YouTube API को टाइम UTC में चाहिए, इसलिए वापस UTC में बदला
+    target_utc = target_ist - datetime.timedelta(hours=5, minutes=30)
+    schedule_time = target_utc.strftime("%Y-%m-%dT%H:%M:%S.0Z")
+    
+    print(f"📅 Video will be scheduled on YouTube for: {target_ist.strftime('%I:%M %p')} IST")
+    return schedule_time
+
 def upload_to_youtube():
     if not TOKEN_B64:
         print("⚠️ YOUTUBE_TOKEN_BASE64 is missing in secrets. Skipping YouTube upload.")
@@ -44,6 +69,9 @@ def upload_to_youtube():
         
         youtube = build('youtube', 'v3', credentials=creds)
         title, description, tags = parse_metadata()
+        
+        # ⏰ शेड्यूल टाइम निकालें
+        schedule_time = get_schedule_time()
 
         body = {
             'snippet': {
@@ -53,19 +81,20 @@ def upload_to_youtube():
                 'categoryId': '24' # Entertainment Category
             },
             'status': {
-                'privacyStatus': 'public',  # वीडियो सीधा पब्लिक होगी
-                'selfDeclaredMadeForKids': False, # बच्चों के लिए नहीं है
-                # 🤖 AI ALTERED CONTENT TICK (YouTube Policy)
-                'containsSyntheticMedia': True 
+                'privacyStatus': 'private',      # 🚨 शेड्यूल करने के लिए इसे 'private' रखना अनिवार्य है
+                'publishAt': schedule_time,      # 🚨 यहाँ हमारा फिक्स किया हुआ टाइम जाएगा
+                'selfDeclaredMadeForKids': False, 
+                'containsSyntheticMedia': True   # AI Video Tag
             }
         }
 
         media = MediaFileUpload(VIDEO_FILE, chunksize=-1, resumable=True, mimetype='video/mp4')
         request = youtube.videos().insert(part=','.join(body.keys()), body=body, media_body=media)
         
-        print(f"🚀 Uploading Video to YouTube...\nTitle: {title}")
+        print(f"🚀 Uploading & Scheduling Video to YouTube...\nTitle: {title}")
         response = request.execute()
-        print(f"🎉 YouTube Upload Complete! Video Link: https://youtu.be/{response.get('id')}")
+        print(f"🎉 YouTube Upload Complete! Video Scheduled Successfully.")
+        print(f"🔗 Video Link: https://youtu.be/{response.get('id')}")
 
     except Exception as e:
         print(f"❌ YouTube Upload Failed: {e}")
