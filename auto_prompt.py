@@ -9,7 +9,7 @@ MY_STORY_GENRE = "Cartoon"             # ऑप्शन: "Educational", "Funny"
 import os
 import sys
 import math
-import time  # <-- सर्वर बिजी होने पर रुकने के लिए
+import time
 from google import genai
 
 STORY_FILE = "story.txt"
@@ -43,8 +43,10 @@ def generate_ai_script(topic):
     """
     
     client = genai.Client(api_key=GEMINI_API_KEY)
-    models = ['gemini-3.6-flash', 'gemini-3.5-flash-lite', 'gemini-3.4-flash']
-    max_retries = 5  # 5 बार ट्राई करेगा
+    
+    # 🚨 ध्यान दें: Google के सही मॉडल्स के नाम यही हैं (इन्हें मत बदलना)
+    models = ['gemini-3.6-flash', 'gemini-3.0-flash', 'gemini-3.5-flash']
+    max_retries = 5  
     
     for attempt in range(1, max_retries + 1):
         print(f"\n🔄 [Attempt {attempt}/{max_retries}] AI से स्क्रिप्ट मांग रहा हूँ...")
@@ -66,12 +68,12 @@ def generate_ai_script(topic):
 
                 if len(valid_lines) > 0:
                     print(f"✅ SUCCESS! {model_name} ने स्क्रिप्ट दे दी।")
-                    return "\n".join(valid_lines[:target_scenes]) # काम पूरा, आगे बढ़ो
+                    return "\n".join(valid_lines[:target_scenes])
 
             except Exception as e:
                 print(f"❌ {model_name} फेल हो गया। Error: {e}")
                 print("⏳ 5 सेकंड रुक रहा हूँ...")
-                time.sleep(5)  # 5 सेकंड रुकेगा और अगले मॉडल पर जाएगा
+                time.sleep(5)
                 continue
                 
         print("⚠️ इस बार सभी मॉडल फेल हो गए। 5 सेकंड बाद दोबारा पूरी कोशिश करूँगा...")
@@ -79,11 +81,6 @@ def generate_ai_script(topic):
 
     print("❌ 5 बार कोशिश करने के बाद भी स्क्रिप्ट नहीं बन पाई।")
     return None
-
-    except Exception as e:
-        print("❌ Main Gemini Error:")
-        print(e)
-        return None
 
 def process_stories():
     if not os.path.exists(STORY_FILE): 
