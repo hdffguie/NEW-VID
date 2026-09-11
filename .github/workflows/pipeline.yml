@@ -63,7 +63,8 @@ jobs:
     - name: 🌐 Auto-Install & Connect VPN (For Images)
       run: |
         sudo apt-get update -qq && sudo apt-get install -y openvpn curl -qq
-        curl -s https://www.vpngate.net/api/iphone/ | grep -v "^#" | grep -v "^HostName" | sort -R | head -n 1 | awk -F "," '{print $15}' | base64 -d > auto_vpn.ovpn
+        # 🚨 Fix: 'shuf -n 1' used instead of 'sort | head' to prevent Broken Pipe error
+        curl -s https://www.vpngate.net/api/iphone/ | grep -v "^#" | grep -v "^HostName" | shuf -n 1 | awk -F "," '{print $15}' | base64 -d > auto_vpn.ovpn
         sudo openvpn --config auto_vpn.ovpn --daemon
         sleep 15
         NEW_IP=$(curl -s --max-time 10 ifconfig.me || echo "Failed to get IP")
@@ -105,7 +106,8 @@ jobs:
     - name: 🌐 Auto-Install & Connect VPN (For Videos)
       run: |
         sudo apt-get update -qq && sudo apt-get install -y openvpn curl -qq
-        curl -s https://www.vpngate.net/api/iphone/ | grep -v "^#" | grep -v "^HostName" | sort -R | head -n 1 | awk -F "," '{print $15}' | base64 -d > auto_vpn.ovpn
+        # 🚨 Fix: 'shuf -n 1' used instead of 'sort | head'
+        curl -s https://www.vpngate.net/api/iphone/ | grep -v "^#" | grep -v "^HostName" | shuf -n 1 | awk -F "," '{print $15}' | base64 -d > auto_vpn.ovpn
         sudo openvpn --config auto_vpn.ovpn --daemon
         sleep 15
         NEW_IP=$(curl -s --max-time 10 ifconfig.me || echo "Failed to get IP")
