@@ -61,14 +61,37 @@ jobs:
         python-version: '3.10'
         
     - name: 🌐 Auto-Install & Connect VPN (For Images)
+      continue-on-error: true
       run: |
         sudo apt-get update -qq && sudo apt-get install -y openvpn curl -qq
-        # 🚨 Fix: 'shuf -n 1' used instead of 'sort | head' to prevent Broken Pipe error
-        curl -s https://www.vpngate.net/api/iphone/ | grep -v "^#" | grep -v "^HostName" | shuf -n 1 | awk -F "," '{print $15}' | base64 -d > auto_vpn.ovpn
-        sudo openvpn --config auto_vpn.ovpn --daemon
-        sleep 15
+        for i in {1..3}; do
+          echo "🔄 VPN फाइल लाने की कोशिश $i..."
+          curl -s --max-time 15 https://www.vpngate.net/api/iphone/ > vpn_data.csv
+          if grep -q "^HostName" vpn_data.csv; then
+            BASE64_DATA=$(grep -v "^#" vpn_data.csv | grep -v "^HostName" | shuf -n 1 | awk -F "," '{print $15}' | tr -d '\r')
+            if [ -n "$BASE64_DATA" ]; then
+              echo "$BASE64_DATA" | base64 -d > auto_vpn.ovpn 2>/dev/null
+              if [ -s auto_vpn.ovpn ]; then
+                echo "✅ सही VPN फाइल मिल गई!"
+                break
+              fi
+            fi
+          fi
+          echo "⚠️ फाइल सही नहीं मिली, दोबारा कोशिश कर रहे हैं..."
+          sleep 2
+        done
+        
+        if [ -s auto_vpn.ovpn ]; then
+          sudo openvpn --config auto_vpn.ovpn --daemon
+          echo "⏳ VPN से जुड़ रहे हैं (15 सेकंड रुकें)..."
+          sleep 15
+        else
+          echo "❌ कोई सही VPN नहीं मिला, बिना VPN के आगे बढ़ रहे हैं।"
+        fi
+        
         NEW_IP=$(curl -s --max-time 10 ifconfig.me || echo "Failed to get IP")
         echo "CURRENT_IP=$NEW_IP" >> $GITHUB_ENV
+        echo "🌍 Current IP: $NEW_IP"
         
     - run: |
         pip install -r requirements.txt
@@ -104,14 +127,37 @@ jobs:
         python-version: '3.10'
         
     - name: 🌐 Auto-Install & Connect VPN (For Videos)
+      continue-on-error: true
       run: |
         sudo apt-get update -qq && sudo apt-get install -y openvpn curl -qq
-        # 🚨 Fix: 'shuf -n 1' used instead of 'sort | head'
-        curl -s https://www.vpngate.net/api/iphone/ | grep -v "^#" | grep -v "^HostName" | shuf -n 1 | awk -F "," '{print $15}' | base64 -d > auto_vpn.ovpn
-        sudo openvpn --config auto_vpn.ovpn --daemon
-        sleep 15
+        for i in {1..3}; do
+          echo "🔄 VPN फाइल लाने की कोशिश $i..."
+          curl -s --max-time 15 https://www.vpngate.net/api/iphone/ > vpn_data.csv
+          if grep -q "^HostName" vpn_data.csv; then
+            BASE64_DATA=$(grep -v "^#" vpn_data.csv | grep -v "^HostName" | shuf -n 1 | awk -F "," '{print $15}' | tr -d '\r')
+            if [ -n "$BASE64_DATA" ]; then
+              echo "$BASE64_DATA" | base64 -d > auto_vpn.ovpn 2>/dev/null
+              if [ -s auto_vpn.ovpn ]; then
+                echo "✅ सही VPN फाइल मिल गई!"
+                break
+              fi
+            fi
+          fi
+          echo "⚠️ फाइल सही नहीं मिली, दोबारा कोशिश कर रहे हैं..."
+          sleep 2
+        done
+        
+        if [ -s auto_vpn.ovpn ]; then
+          sudo openvpn --config auto_vpn.ovpn --daemon
+          echo "⏳ VPN से जुड़ रहे हैं (15 सेकंड रुकें)..."
+          sleep 15
+        else
+          echo "❌ कोई सही VPN नहीं मिला, बिना VPN के आगे बढ़ रहे हैं।"
+        fi
+        
         NEW_IP=$(curl -s --max-time 10 ifconfig.me || echo "Failed to get IP")
         echo "CURRENT_IP=$NEW_IP" >> $GITHUB_ENV
+        echo "🌍 Current IP: $NEW_IP"
         
     - name: Install FFmpeg
       run: |
