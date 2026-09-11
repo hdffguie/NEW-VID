@@ -9,6 +9,7 @@ MY_STORY_GENRE = "Cartoon"             # ऑप्शन: "Educational", "Funny"
 import os
 import sys
 import math
+import time  # <-- सर्वर बिजी होने पर रुकने के लिए
 from google import genai
 
 STORY_FILE = "story.txt"
@@ -46,11 +47,12 @@ def generate_ai_script(topic):
     
     try:
         client = genai.Client(api_key=GEMINI_API_KEY)
-        models = ['gemini-3.6-flash', 'gemini-2.0-flash-lite', 'gemini-1.5-flash']
+        # Google के एकदम लेटेस्ट वर्किंग मॉडल्स (जो एरर मैसेज ने खुद सजेस्ट किए हैं)
+        models = ['gemini-3.6-flash', 'gemini-3.5-flash-lite', 'gemini-1.5-flash-latest']
         
         for model_name in models:
             try:
-                print(f"👉 Trying Gemini model: {model_name}")
+                print(f"👉 Trying Gemini model: {model_name} ...")
 
                 response = client.models.generate_content(
                     model=model_name,
@@ -65,7 +67,6 @@ def generate_ai_script(topic):
 
                 if not text:
                     print(f"⚠️ {model_name}: Empty text response")
-                    print(f"Raw response: {response}")
                     continue
 
                 output = text.replace("```text", "").replace("```", "").strip()
@@ -74,19 +75,22 @@ def generate_ai_script(topic):
                 print(f"✅ {model_name} returned {len(valid_lines)} valid lines")
 
                 if len(valid_lines) == 0:
-                    print("⚠️ AI ने pipe format में output नहीं दिया")
-                    print("AI OUTPUT:")
-                    print(output)
+                    print("⚠️ AI ने pipe format में output नहीं दिया।")
                     continue
 
                 return "\n".join(valid_lines[:target_scenes])
 
             except Exception as e:
-                print(f"❌ Model {model_name} failed:")
-                print(e)
+                error_msg = str(e)
+                print(f"❌ Model {model_name} failed: {error_msg}")
+                
+                # अगर सर्वर बिजी (503) है, तो 5 सेकंड रुककर अगला ट्राई करे
+                if "503" in error_msg or "High demand" in error_msg:
+                    print("⏳ Server is busy. Waiting 5 seconds before trying next...")
+                    time.sleep(5)
                 continue
 
-        print("❌ सभी Gemini models fail हो गए")
+        print("❌ सभी Gemini models fail हो गए।")
         return None
 
     except Exception as e:
