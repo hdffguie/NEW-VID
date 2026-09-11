@@ -59,6 +59,16 @@ jobs:
     - uses: actions/setup-python@v5
       with:
         python-version: '3.10'
+        
+    - name: 🌐 Auto-Install & Connect VPN (For Images)
+      run: |
+        sudo apt-get update -qq && sudo apt-get install -y openvpn curl -qq
+        curl -s https://www.vpngate.net/api/iphone/ | grep -v "^#" | grep -v "^HostName" | sort -R | head -n 1 | awk -F "," '{print $15}' | base64 -d > auto_vpn.ovpn
+        sudo openvpn --config auto_vpn.ovpn --daemon
+        sleep 15
+        NEW_IP=$(curl -s --max-time 10 ifconfig.me || echo "Failed to get IP")
+        echo "CURRENT_IP=$NEW_IP" >> $GITHUB_ENV
+        
     - run: |
         pip install -r requirements.txt
         playwright install chromium
@@ -70,6 +80,7 @@ jobs:
       env:
         BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
         CHAT_ID: ${{ secrets.CHAT_ID }}
+        CURRENT_IP: ${{ env.CURRENT_IP }}
       run: python main.py ${{ matrix.machine_id }}
     - uses: actions/upload-artifact@v4
       if: always()
@@ -90,6 +101,16 @@ jobs:
     - uses: actions/setup-python@v5
       with:
         python-version: '3.10'
+        
+    - name: 🌐 Auto-Install & Connect VPN (For Videos)
+      run: |
+        sudo apt-get update -qq && sudo apt-get install -y openvpn curl -qq
+        curl -s https://www.vpngate.net/api/iphone/ | grep -v "^#" | grep -v "^HostName" | sort -R | head -n 1 | awk -F "," '{print $15}' | base64 -d > auto_vpn.ovpn
+        sudo openvpn --config auto_vpn.ovpn --daemon
+        sleep 15
+        NEW_IP=$(curl -s --max-time 10 ifconfig.me || echo "Failed to get IP")
+        echo "CURRENT_IP=$NEW_IP" >> $GITHUB_ENV
+        
     - name: Install FFmpeg
       run: |
         sudo apt-get update && sudo apt-get install -y ffmpeg
@@ -108,6 +129,7 @@ jobs:
       env:
         BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
         CHAT_ID: ${{ secrets.CHAT_ID }}
+        CURRENT_IP: ${{ env.CURRENT_IP }}
       run: python generate_video.py ${{ matrix.machine_id }}
     - uses: actions/upload-artifact@v4
       if: always()
