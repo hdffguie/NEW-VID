@@ -3,7 +3,7 @@
 # ==============================================================
 MY_VIDEO_DURATION = 15                 # ऑप्शन: 15, 30, 45, 60 (वीडियो कितने सेकंड की बनानी है)
 MY_VISUAL_STYLE = "2D Anime"           # ऑप्शन: "Realistic Human", "3D Pixar", "2D Anime"
-MY_STORY_GENRE = "Cartoon"             # ऑप्शन: "Educational", "Funny", "Cartoon", "Sad", "Horror"
+MY_STORY_GENRE = "Anime"             # ऑप्शन: "Educational", "Funny", "Cartoon", "Sad", "Horror"
 # ==============================================================
 
 import os
