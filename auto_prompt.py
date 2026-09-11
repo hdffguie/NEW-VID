@@ -1,3 +1,21 @@
+# ==============================================================
+# ⚙️ अपनी सेटिंग्स यहाँ खुद सेव करें (MANUAL SETUP)
+# ==============================================================
+MY_VIDEO_DURATION = 60                 # ऑप्शन: 15, 30, 45, 60 (वीडियो कितने सेकंड की बनानी है)
+MY_VISUAL_STYLE = "2D Anime"           # ऑप्शन: "Realistic Human", "3D Pixar", "2D Anime"
+MY_STORY_GENRE = "Cartoon"             # ऑप्शन: "Educational", "Funny", "Cartoon", "Sad", "Horror"
+# ==============================================================
+
+import os
+import sys
+import math
+from google import genai
+
+STORY_FILE = "story.txt"
+PROMPT_FILE = "prompts.txt"
+METADATA_FILE = "metadata.txt"
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+
 def generate_ai_script(topic):
     if not GEMINI_API_KEY:
         print("❌ GEMINI_API_KEY नहीं मिली!")
@@ -28,7 +46,7 @@ def generate_ai_script(topic):
     
     try:
         client = genai.Client(api_key=GEMINI_API_KEY)
-        models = ['gemini-2.0-flash', 'gemini-3.6-flash-lite', 'gemini-1.5-flash']
+        models = ['gemini-2.0-flash', 'gemini-2.0-flash-lite', 'gemini-1.5-flash']
         
         for model_name in models:
             try:
@@ -77,9 +95,16 @@ def generate_ai_script(topic):
         return None
 
 def process_stories():
-    if not os.path.exists(STORY_FILE): sys.exit(1)
-    with open(STORY_FILE, "r", encoding="utf-8") as f: content = f.read().strip()
-    if not content: sys.exit(1)
+    if not os.path.exists(STORY_FILE): 
+        print(f"❌ {STORY_FILE} File नहीं मिली!")
+        sys.exit(1)
+        
+    with open(STORY_FILE, "r", encoding="utf-8") as f: 
+        content = f.read().strip()
+        
+    if not content: 
+        print("❌ story.txt खाली है! कृपया कोई टॉपिक डालें।")
+        sys.exit(1)
         
     topics = [t.strip() for t in content.split("\n") if t.strip()]
     current_topic = topics[0]
@@ -89,7 +114,8 @@ def process_stories():
         print("❌ AI Script नहीं बन पाई।")
         sys.exit(1)
         
-    with open(PROMPT_FILE, "w", encoding="utf-8") as f: f.write(ai_output + "\n")
+    with open(PROMPT_FILE, "w", encoding="utf-8") as f: 
+        f.write(ai_output + "\n")
     
     # 🚀 Viral SEO
     viral_title = f"{current_topic} 😱🤯 | {MY_STORY_GENRE} Story #shorts"
