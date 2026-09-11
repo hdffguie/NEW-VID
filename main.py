@@ -27,11 +27,14 @@ def read_prompts():
     prompts = {}
     with open(PROMPT_FILE, "r", encoding="utf-8") as f:
         for idx, line in enumerate(f.readlines(), 1):
-            parts = line.split("|")
+            parts = line.strip().split("|")
+            
+            # अगर AI ने सही से 3 या उससे ज्यादा हिस्से बनाये हैं
             if len(parts) >= 3:
-                prompts[idx] = parts[0].strip()
-            elif len(parts) >= 1:
-                prompts[idx] = parts[2].strip()
+                # parts[2] का मतलब है तीसरा हिस्सा (English Image Prompt)
+                prompts[idx] = parts[2].strip() 
+            else:
+                prompts[idx] = line.strip()
     return prompts
 
 async def capture_and_send_screenshot(page, machine_id, step_label):
