@@ -35,13 +35,13 @@ def get_schedule_time():
     utc_now = datetime.datetime.utcnow()
     ist_now = utc_now + datetime.timedelta(hours=5, minutes=30) # भारत का समय
 
-    # अगर बॉट रात 2:30 बजे (IST) के आस-पास चल रहा है
-    if ist_now.hour == 2:
+    # 🚨 स्मार्ट लॉजिक: अगर बॉट रात 1:00 AM से 2:59 AM के बीच कभी भी चले
+    if ist_now.hour < 3:
         # तो आज सुबह 5:27 AM का शेड्यूल सेट करो
         target_ist = ist_now.replace(hour=5, minute=27, second=0, microsecond=0)
         print("🌅 Morning Schedule Detected!")
     
-    # अगर बॉट रात 3:30 बजे (IST) के आस-पास चल रहा है
+    # 🚨 स्मार्ट लॉजिक: अगर बॉट 3:00 AM से 4:59 AM के बीच कभी भी चले
     else:
         # तो आज शाम 8:26 PM का शेड्यूल सेट करो
         target_ist = ist_now.replace(hour=20, minute=26, second=0, microsecond=0)
