@@ -9,7 +9,7 @@ from googleapiclient.http import MediaFileUpload
 
 TOKEN_B64 = os.getenv("YOUTUBE_TOKEN_BASE64", "")
 VIDEO_FILE = "final_output/Final_4K_Monetizable_Short.mp4"
-METADATA_FILE = "final_output/metadata.txt"
+METADATA_FILE = "metadata.txt"  # 🚨 FIX: फाइल का सही रास्ता यहाँ ठीक कर दिया गया है!
 
 def parse_metadata():
     title = "Viral Story 😱 #shorts"
@@ -19,9 +19,10 @@ def parse_metadata():
     if os.path.exists(METADATA_FILE):
         with open(METADATA_FILE, "r", encoding="utf-8") as f:
             text = f.read()
-            t_match = re.search(r"Title:\s*(.*)", text)
-            d_match = re.search(r"Description:\s*([\s\S]*?)Tags:", text)
-            tag_match = re.search(r"Tags:\s*(.*)", text)
+            # re.IGNORECASE लगाया है ताकि Title, TITLE, title कुछ भी हो, यह पढ़ ले
+            t_match = re.search(r"Title:\s*(.*)", text, re.IGNORECASE)
+            d_match = re.search(r"Description:\s*([\s\S]*?)Tags:", text, re.IGNORECASE)
+            tag_match = re.search(r"Tags:\s*(.*)", text, re.IGNORECASE)
             
             if t_match: title = t_match.group(1).strip()
             if d_match: description = d_match.group(1).strip()
@@ -81,10 +82,10 @@ def upload_to_youtube():
                 'categoryId': '24' # Entertainment Category
             },
             'status': {
-                'privacyStatus': 'private',      # 🚨 शेड्यूल करने के लिए इसे 'private' रखना अनिवार्य है
-                'publishAt': schedule_time,      # 🚨 यहाँ हमारा फिक्स किया हुआ टाइम जाएगा
+                'privacyStatus': 'private',      
+                'publishAt': schedule_time,      
                 'selfDeclaredMadeForKids': False, 
-                'containsSyntheticMedia': True   # AI Video Tag
+                'containsSyntheticMedia': True   
             }
         }
 
