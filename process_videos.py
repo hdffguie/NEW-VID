@@ -37,7 +37,8 @@ def get_random_face_clip():
     out_face = os.path.join(OUTPUT_DIR, "processed_face.mp4")
     random_filter = random.choice(["eq=contrast=1.1:brightness=0.03", "eq=saturation=1.4", "hue=s=1.2:h=5"])
     
-    cmd = ["ffmpeg", "-y", "-i", selected_clip, "-vf", f"scale=2160:3840:force_original_aspect_ratio=increase,crop=2160:3840,setsar=1,fps=30,format=yuv420p,{random_filter}", "-c:v", "libx264", "-b:v", "15M", "-c:a", "aac", "-b:a", "320k", out_face]
+    # 🚨 FIX: यहाँ फेस क्लिप की आवाज़ को 44100Hz Stereo में सेट कर दिया गया है
+    cmd = ["ffmpeg", "-y", "-i", selected_clip, "-vf", f"scale=2160:3840:force_original_aspect_ratio=increase,crop=2160:3840,setsar=1,fps=30,format=yuv420p,{random_filter}", "-c:v", "libx264", "-b:v", "15M", "-c:a", "aac", "-b:a", "320k", "-ar", "44100", "-ac", "2", out_face]
     subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     return out_face
 
@@ -98,7 +99,8 @@ def process_single_clip(input_path, output_path, index, story_text, global_vid_c
     else:
         cmd_base += ["-vf", base_filter]
     
-    cmd = cmd_base + ["-c:v", "libx264", "-preset", "medium", "-b:v", "15M", "-maxrate", "20M", "-bufsize", "30M", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "320k", output_path]
+    # 🚨 FIX: यहाँ AI क्लिप्स की आवाज़ को भी 44100Hz Stereo में सेट कर दिया गया है
+    cmd = cmd_base + ["-c:v", "libx264", "-preset", "medium", "-b:v", "15M", "-maxrate", "20M", "-bufsize", "30M", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "320k", "-ar", "44100", "-ac", "2", output_path]
     subprocess.run(cmd, check=True)
     return output_path
 
@@ -110,11 +112,10 @@ def add_bgm_to_final(video_path):
     random_bgm = random.choice(bgms)
     final_output = os.path.join(OUTPUT_DIR, "Final_4K_Monetizable_Short.mp4")
     
-    # 🚨 यहाँ -shortest जोड़ा गया है ताकि वीडियो खत्म होते ही BGM कट जाए
     cmd = [
         "ffmpeg", "-y", "-i", video_path, "-stream_loop", "-1", "-i", random_bgm,
         "-filter_complex", "[0:a]volume=1.0[main]; [1:a]volume=0.15[bgm]; [main][bgm]amix=inputs=2:duration=shortest:dropout_transition=2[a_out]",
-        "-map", "0:v", "-map", "[a_out]", "-c:v", "copy", "-c:a", "aac", "-b:a", "320k", 
+        "-map", "0:v", "-map", "[a_out]", "-c:v", "copy", "-c:a", "aac", "-b:a", "320k", "-ar", "44100", "-ac", "2",
         "-shortest", final_output
     ]
     subprocess.run(cmd, check=True)
