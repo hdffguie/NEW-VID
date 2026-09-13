@@ -37,14 +37,14 @@ def get_random_face_clip():
     out_face = os.path.join(OUTPUT_DIR, "processed_face.mp4")
     random_filter = random.choice(["eq=contrast=1.1:brightness=0.03", "eq=saturation=1.4", "hue=s=1.2:h=5"])
     
-    cmd = ["ffmpeg", "-y", "-i", selected_clip, "-vf", f"scale=2160:3840:force_original_aspect_ratio=increase,crop=2160:3840,setsar=1,fps=30,format=yuv420p,{random_filter}", "-c:v", "libx264", "-b:v", "15M", "-c:a", "aac", "-b:a", "320k", "-ar", "44100", "-ac", "2", out_face]
+    # 🚨 FIX 1: आपकी फेस क्लिप का वॉल्यूम 3 गुना (volume=3.0) कर दिया गया है!
+    cmd = ["ffmpeg", "-y", "-i", selected_clip, "-vf", f"scale=2160:3840:force_original_aspect_ratio=increase,crop=2160:3840,setsar=1,fps=30,format=yuv420p,{random_filter}", "-af", "volume=3.0", "-c:v", "libx264", "-b:v", "15M", "-c:a", "aac", "-b:a", "320k", "-ar", "44100", "-ac", "2", out_face]
     subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     return out_face
 
 def generate_tts_with_vtt(text, index):
     audio_path = os.path.join(OUTPUT_DIR, f"audio_{index}.mp3")
     vtt_path = os.path.join(OUTPUT_DIR, f"audio_{index}.vtt")
-    # 🚨 FIX 1: आवाज़ की स्पीड (+15%) और वॉल्यूम (+50%) बढ़ा दी गई है!
     cmd = ["edge-tts", "--voice", "hi-IN-MadhurNeural", "--rate=+15%", "--volume=+50%", "--pitch=+0Hz", "--text", text, "--write-media", audio_path, "--write-subtitles", vtt_path]
     subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     return audio_path, vtt_path
@@ -99,8 +99,8 @@ def process_single_clip(input_path, output_path, index, story_text, global_vid_c
     if audio_path and os.path.exists(audio_path):
         cmd_base += ["-i", audio_path]
         if vid_has_audio:
-            # 🚨 FIX 2: यहाँ AI Video के साउंड इफ़ेक्ट (SFX) को आवाज़ (TTS) के साथ मिक्स किया गया है!
-            audio_filter = "[0:a]volume=1.5[sfx]; [1:a]volume=2.5[tts]; [sfx][tts]amix=inputs=2:duration=longest[a_out]"
+            # 🚨 FIX 2: dropout_transition=0 लगा दिया है, जिससे बीच में आवाज़ म्यूट नहीं होगी!
+            audio_filter = "[0:a]volume=1.5[sfx]; [1:a]volume=2.5[tts]; [sfx][tts]amix=inputs=2:duration=longest:dropout_transition=0[a_out]"
             cmd_base += ["-filter_complex", f"[0:v]{base_filter}[v_out]; {audio_filter}", "-map", "[v_out]", "-map", "[a_out]", "-shortest"]
         else:
             cmd_base += ["-filter_complex", f"[0:v]{base_filter}[v_out]; [1:a]volume=2.5[a_out]", "-map", "[v_out]", "-map", "[a_out]", "-shortest"]
@@ -119,10 +119,9 @@ def add_bgm_to_final(video_path):
     random_bgm = random.choice(bgms)
     final_output = os.path.join(OUTPUT_DIR, "Final_4K_Monetizable_Short.mp4")
     
-    # 🚨 FIX 3: यहाँ बैकग्राउंड म्यूजिक का वॉल्यूम घटाकर बहुत कम (0.04) कर दिया गया है!
     cmd = [
         "ffmpeg", "-y", "-i", video_path, "-stream_loop", "-1", "-i", random_bgm,
-        "-filter_complex", "[0:a]volume=1.2[main]; [1:a]volume=0.04[bgm]; [main][bgm]amix=inputs=2:duration=shortest:dropout_transition=2[a_out]",
+        "-filter_complex", "[0:a]volume=1.2[main]; [1:a]volume=0.07[bgm]; [main][bgm]amix=inputs=2:duration=shortest:dropout_transition=0[a_out]",
         "-map", "0:v", "-map", "[a_out]", "-c:v", "copy", "-c:a", "aac", "-b:a", "320k", "-ar", "44100", "-ac", "2",
         "-shortest", final_output
     ]
