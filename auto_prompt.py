@@ -1,9 +1,9 @@
 # ==============================================================
-# ⚙️ अपनी सेटिंग्स यहाँ खुद सेव करें (MANUAL SETUP)
+# ⚙️ अपनी सेटिंग्स यहाँ खुद सेव करें (सिर्फ इसे बदलना है!)
 # ==============================================================
-MY_VIDEO_DURATION = 30                 # ऑप्शन: 15, 30, 45, 60 (वीडियो कितने सेकंड की बनानी है)
-MY_VISUAL_STYLE = "Dark Cinematic Horror, highly detailed, realistic, creepy atmosphere"
-MY_STORY_GENRE = "Horror and Scary"
+MY_VIDEO_DURATION = 30                 
+MY_VISUAL_STYLE = "3D Pixar Animation style, highly expressive funny faces, vibrant colors"
+MY_STORY_GENRE = "Funny, Roasting, Desi Comedy"
 # ==============================================================
 
 import os
@@ -25,35 +25,36 @@ def generate_ai_script(topic):
 
     target_scenes = max(3, math.ceil(MY_VIDEO_DURATION / 5))
     
-    # 🚨 जादू यहाँ है: AI को First-Person (मैं, मेरा) और देहाती/लोकल स्टाइल में बोलने का कमांड दिया है
-    master_prompt = f"""You are a young local guy from an Indian village telling a creepy personal experience to your friends.
-    Your goal is 100% Audience Retention through intense, relatable storytelling.
+    # 🚨 SMART AI LOGIC: यह आपके 'Genre' के हिसाब से खुद कैमरा और SFX तय करेगा
+    master_prompt = f"""You are an elite Professional YouTube Shorts Director.
+    Your goal is 100% Audience Retention.
     
     Task: Write a Hindi short story based on: "{topic}".
     
     CRITICAL RULES:
-    1. FIRST-PERSON POV (CRITICAL): The story MUST be told in the first-person using "मैं", "मेरा", "मुझे". NEVER use third-person like "उसने", "वह".
-    2. DESI/RUSTIC TONE: Use casual, local conversational Hindi (e.g., "भाई मेरी तो फट गई", "मैं चुपचाप जा रहा था", "अचानक से").
-    3. VISUAL STYLE: The Image prompt MUST exactly follow this art style: {MY_VISUAL_STYLE}.
-    4. CHARACTER CONSISTENCY: Describe yourself (the main character) in every prompt (e.g., a 20yo Indian boy wearing a checked shirt).
-    5. EXACT LENGTH: Generate EXACTLY {target_scenes} lines.
-    6. DUPLICATE TEXT: Part 1 and Part 2 must be the EXACT SAME short Hindi sentence (Max 8-12 words).
-    7. FORMAT: Exactly 4 parts separated by pipe (|).
+    1. TONE & GENRE: The story MUST perfectly match this genre: {MY_STORY_GENRE}. 
+       - If it's Comedy/Roast: Use first-person ("मैं", "मेरा"), use funny slang, be sarcastic.
+       - If it's Horror/Thriller: Be extremely scary, suspenseful, and dark.
+    2. VISUAL STYLE: The Image prompt MUST exactly follow this art style: {MY_VISUAL_STYLE}.
+    3. CHARACTER CONSISTENCY: Describe the main character's age, clothes, and face in EVERY SINGLE prompt.
+    4. EXACT LENGTH: Generate EXACTLY {target_scenes} lines.
+    5. DUPLICATE TEXT: Part 1 and Part 2 must be the EXACT SAME short Hindi sentence.
+    6. FORMAT: Exactly 4 parts separated by pipe (|).
     
-    8. 🎥 VIDEO PROMPT (CRITICAL LIMITATION): 
-    The AI Video generator CANNOT make characters walk, run, or fight. The character MUST be stationary.
-    Focus ONLY on facial expressions (shocked, crying), environmental motion (rain, wind, fog moving), and camera motion.
+    7. 🎥 DYNAMIC VIDEO PROMPT (CAMERA & SFX): 
+    The AI Video generator CANNOT make characters walk or fight. Focus on facial expressions and camera motion.
+    MATCH THE SFX AND CAMERA MOTION EXACTLY TO THIS GENRE -> {MY_STORY_GENRE}:
+    - If Comedy/Roasting: Use "Fast zoom into awkward face". SFX: "Record scratch, funny boing, crowd laughing, cartoon running sound".
+    - If Horror/Scary: Use "Fast crash zoom, shaky cam". SFX: "Loud cinematic boom, intense heartbeat, eerie screech".
+    - If Sad/Emotional: Use "Slow cinematic tilt". SFX: "Deep bass rumble, soft wind".
     ADD THIS EXACTLY AT THE END OF VIDEO PROMPT: ", no voice, no background music, high quality, 8k".
-    
-    Example of Good Tone: 
-    रात के 2 बजे थे और मैं सुनसान सड़क से जा रहा था। | रात के 2 बजे थे और मैं सुनसान सड़क से जा रहा था। | ... | ...
     """
     
     client = genai.Client(api_key=GEMINI_API_KEY)
-    models = ['gemini-3.6-flash', 'gemini-3.5-flash']
+    models = ['gemini-3.6-flash', 'gemini-1.5-flash']
     
     for attempt in range(1, 6):
-        print(f"\n🔄 [Attempt {attempt}/5] AI से देहाती स्क्रिप्ट मांग रहा हूँ...")
+        print(f"\n🔄 [Attempt {attempt}/5] AI से {MY_STORY_GENRE} स्क्रिप्ट मांग रहा हूँ...")
         for model_name in models:
             try:
                 response = client.models.generate_content(model=model_name, contents=master_prompt)
@@ -64,7 +65,7 @@ def generate_ai_script(topic):
                 valid_lines = [line.strip() for line in output.split('\n') if '|' in line]
 
                 if len(valid_lines) > 0:
-                    print(f"✅ SUCCESS! {model_name} ने धमाकेदार स्क्रिप्ट दे दी।")
+                    print(f"✅ SUCCESS! {model_name} ने परफेक्ट स्क्रिप्ट दे दी।")
                     return "\n".join(valid_lines[:target_scenes])
             except Exception as e:
                 time.sleep(3)
@@ -73,12 +74,13 @@ def generate_ai_script(topic):
 
 def generate_ai_metadata(topic):
     print("🚀 AI से Viral SEO (Title, Tags) बनवा रहा हूँ...")
-    prompt = f"""You are an expert YouTube SEO manager.
+    # 🚨 SMART SEO LOGIC: यह भी Genre के हिसाब से बदल जाएगा
+    prompt = f"""You are an expert YouTube SEO manager for a channel that makes {MY_STORY_GENRE} videos.
     I am making a YouTube Shorts video about this topic: "{topic}".
     Give me a viral metadata package in EXACTLY this format:
-    TITLE: [A clickbait Hindi title with emojis and #shorts]
-    DESC: [A short engaging description asking viewers to subscribe, with 3-4 hashtags]
-    TAGS: [10 comma separated tags related to the topic]
+    TITLE: [A clickbait Hindi title matching {MY_STORY_GENRE} vibe with suitable emojis and #shorts]
+    DESC: [A short engaging description asking viewers to engage, with 3-4 hashtags]
+    TAGS: [10 comma separated tags strictly related to {MY_STORY_GENRE}, the topic, and viral trends]
     """
     client = genai.Client(api_key=GEMINI_API_KEY)
     try:
@@ -87,12 +89,12 @@ def generate_ai_metadata(topic):
         title_match = re.search(r"TITLE:\s*(.*)", text)
         desc_match = re.search(r"DESC:\s*([\s\S]*?)TAGS:", text)
         tags_match = re.search(r"TAGS:\s*(.*)", text)
-        title = title_match.group(1).strip() if title_match else f"{topic} 😱 #shorts"
+        title = title_match.group(1).strip() if title_match else f"{topic} #shorts"
         desc = desc_match.group(1).strip() if desc_match else f"🔥 {topic}\n\nLIKE & SUBSCRIBE!"
         tags = tags_match.group(1).strip() if tags_match else "shorts, viral, trending"
         return title, desc, tags
     except Exception as e:
-        return f"{topic} 😱 #shorts", f"🔥 {topic} - Watch till end!", "shorts, viral, ai"
+        return f"{topic} #shorts", f"{topic}", "shorts, viral"
 
 def process_stories():
     if not os.path.exists(STORY_FILE): sys.exit(1)
