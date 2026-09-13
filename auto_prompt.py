@@ -2,8 +2,8 @@
 # ⚙️ अपनी सेटिंग्स यहाँ खुद सेव करें (MANUAL SETUP)
 # ==============================================================
 MY_VIDEO_DURATION = 15                 # ऑप्शन: 15, 30, 45, 60 (वीडियो कितने सेकंड की बनानी है)
-MY_VISUAL_STYLE = "3d"           # ऑप्शन: "Realistic Human", "3D Pixar", "2D Anime"
-MY_STORY_GENRE = "cartoon"               # ऑप्शन: "Educational", "Funny", "Cartoon", "Sad", "Horror"
+MY_VISUAL_STYLE = "2D Anime"           # ऑप्शन: "Realistic Human", "3D Pixar", "2D Anime"
+MY_STORY_GENRE = "Anime"               # ऑप्शन: "Educational", "Funny", "Cartoon", "Sad", "Horror"
 # ==============================================================
 
 import os
@@ -19,7 +19,7 @@ METADATA_FILE = "metadata.txt"
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
 # ---------------------------------------------------------
-# 1. AI से वीडियो की स्क्रिप्ट लिखवाने का फंक्शन
+# 1. AI से वीडियो की स्क्रिप्ट और हॉलीवुड लेवल कैमरा मूवमेंट लिखवाना
 # ---------------------------------------------------------
 def generate_ai_script(topic):
     if not GEMINI_API_KEY:
@@ -29,25 +29,36 @@ def generate_ai_script(topic):
     target_scenes = max(3, math.ceil(MY_VIDEO_DURATION / 5))
     
     print(f"⚙️ Settings -> Duration: {MY_VIDEO_DURATION}s | Style: {MY_VISUAL_STYLE} | Genre: {MY_STORY_GENRE}")
-    print(f"🚀 Google Gemini AI स्क्रिप्ट सोच रहा है...\nTopic: '{topic}'")
+    print(f"🚀 Google Gemini AI (Pro Director) स्क्रिप्ट सोच रहा है...\nTopic: '{topic}'")
     
-    master_prompt = f"""You are an elite Professional YouTube Scriptwriter.
+    # 🚨 यहाँ AI को हॉलीवुड डायरेक्टर वाला दिमाग दिया गया है
+    master_prompt = f"""You are an elite Professional YouTube Shorts Director and Scriptwriter.
+    Your goal is 100% Audience Retention. Every 5-second video clip must have EXTREME dynamic motion.
     
     Task: Write a Hindi short story based on: "{topic}".
     
     CRITICAL RULES:
     1. STORY GENRE: The story MUST be exactly in this tone: {MY_STORY_GENRE}.
     2. VISUAL STYLE: The Image prompt MUST exactly follow this art style: {MY_VISUAL_STYLE}.
-    3. CHARACTER CONSISTENCY: Describe the main character's age, clothes, and face in EVERY SINGLE IMAGE PROMPT so the face does not change across scenes.
-    4. IMAGE PROMPT LIMIT: The English Image Prompt MUST BE UNDER 400 CHARACTERS. Keep it short and descriptive.
+    3. CHARACTER CONSISTENCY: Describe the main character's age, clothes, and face in EVERY SINGLE IMAGE PROMPT.
+    4. IMAGE PROMPT LIMIT: Keep English Image Prompts under 400 characters.
     5. EXACT LENGTH: Generate EXACTLY {target_scenes} lines.
     6. DUPLICATE TEXT: Part 1 and Part 2 must be the EXACT SAME short Hindi sentence (Max 8-12 words).
     7. FORMAT: Exactly 4 parts separated by pipe (|).
-    8. VIDEO PROMPT: Short motion prompt. ADD THIS EXACTLY AT THE END: ", no voice, no background music, only high quality sound effects".
+    
+    8. 🎥 VIDEO PROMPT (CRITICAL FOR RETENTION): 
+    This is for a 5-second AI video. Do NOT use "slow pan" or "slow zoom". Understand the EMOTION of the scene and write high-energy camera movements and specific Sound Effects (SFX).
+    - If Shock/Horror: Use "Fast crash zoom into face, extreme handheld camera shake, sudden whip-pan". SFX: "Loud cinematic boom, intense heartbeat".
+    - If Action/Running: Use "Fast tracking shot, dynamic motion blur, FPV drone style". SFX: "Fast whoosh wind, heavy footsteps splashing".
+    - If Sad/Emotional: Use "Dramatic tilt up, cinematic depth of field shift". SFX: "Deep low bass rumble, wind blowing".
+    ADD THIS EXACTLY AT THE END OF VIDEO PROMPT: ", no voice, no background music, only high quality sound effects".
+    
+    Format Example:
+    Short Hindi Text | Short Hindi Text | {MY_VISUAL_STYLE}, A 10yo boy wearing blue hoodie running from a monster, dark forest, 8k | Fast whip-pan tracking the boy running, heavy handheld camera shake, intense motion blur, SFX: Loud cinematic boom, fast whoosh, heavy breathing, no voice, no background music, only high quality sound effects
     """
     
     client = genai.Client(api_key=GEMINI_API_KEY)
-    models = ['gemini-3.6-flash', 'gemini-1.5-flash']
+    models = ['gemini-2.0-flash', 'gemini-1.5-flash']
     
     for attempt in range(1, 6):
         print(f"\n🔄 [Attempt {attempt}/5] AI से स्क्रिप्ट मांग रहा हूँ...")
@@ -61,7 +72,7 @@ def generate_ai_script(topic):
                 valid_lines = [line.strip() for line in output.split('\n') if '|' in line]
 
                 if len(valid_lines) > 0:
-                    print(f"✅ SUCCESS! {model_name} ने स्क्रिप्ट दे दी।")
+                    print(f"✅ SUCCESS! {model_name} ने धमाकेदार स्क्रिप्ट दे दी।")
                     return "\n".join(valid_lines[:target_scenes])
             except Exception as e:
                 time.sleep(3)
@@ -88,7 +99,6 @@ def generate_ai_metadata(topic):
         response = client.models.generate_content(model='gemini-2.0-flash', contents=prompt)
         text = getattr(response, "text", "")
         
-        # AI के जवाब में से Title, Desc और Tags निकालना
         title_match = re.search(r"TITLE:\s*(.*)", text)
         desc_match = re.search(r"DESC:\s*([\s\S]*?)TAGS:", text)
         tags_match = re.search(r"TAGS:\s*(.*)", text)
