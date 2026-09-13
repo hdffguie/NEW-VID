@@ -25,7 +25,7 @@ def generate_ai_script(topic):
 
     target_scenes = max(3, math.ceil(MY_VIDEO_DURATION / 5))
     
-    # 🚨 SMART AI LOGIC: यह आपके 'Genre' के हिसाब से खुद कैमरा और SFX तय करेगा
+    # 🚨 SMART AI LOGIC: अब AI कॉपी-पेस्ट नहीं करेगा, बल्कि सीन के हिसाब से खुद डायरेक्टर बनेगा!
     master_prompt = f"""You are an elite Professional YouTube Shorts Director.
     Your goal is 100% Audience Retention.
     
@@ -33,20 +33,18 @@ def generate_ai_script(topic):
     
     CRITICAL RULES:
     1. TONE & GENRE: The story MUST perfectly match this genre: {MY_STORY_GENRE}. 
-       - If it's Comedy/Roast: Use first-person ("मैं", "मेरा"), use funny slang, be sarcastic.
-       - If it's Horror/Thriller: Be extremely scary, suspenseful, and dark.
+       - If Comedy/Roast: Use first-person ("मैं", "मेरा", "मेरा दोस्त"), use funny slang.
     2. VISUAL STYLE: The Image prompt MUST exactly follow this art style: {MY_VISUAL_STYLE}.
-    3. CHARACTER CONSISTENCY: Describe the main character's age, clothes, and face in EVERY SINGLE prompt.
+    3. CHARACTER CONSISTENCY & CONTEXT: Describe the main character's age, clothes, and face. IF the scene involves multiple people (like 2 friends talking, or hiding behind a mother), YOU MUST DESCRIBE BOTH PEOPLE in the image prompt.
     4. EXACT LENGTH: Generate EXACTLY {target_scenes} lines.
     5. DUPLICATE TEXT: Part 1 and Part 2 must be the EXACT SAME short Hindi sentence.
     6. FORMAT: Exactly 4 parts separated by pipe (|).
     
-    7. 🎥 DYNAMIC VIDEO PROMPT (CAMERA & SFX): 
-    The AI Video generator CANNOT make characters walk or fight. Focus on facial expressions and camera motion.
-    MATCH THE SFX AND CAMERA MOTION EXACTLY TO THIS GENRE -> {MY_STORY_GENRE}:
-    - If Comedy/Roasting: Use "Fast zoom into awkward face". SFX: "Record scratch, funny boing, crowd laughing, cartoon running sound".
-    - If Horror/Scary: Use "Fast crash zoom, shaky cam". SFX: "Loud cinematic boom, intense heartbeat, eerie screech".
-    - If Sad/Emotional: Use "Slow cinematic tilt". SFX: "Deep bass rumble, soft wind".
+    7. 🎥 DYNAMIC VIDEO PROMPT (CREATE CUSTOM CAMERA & SFX): 
+    DO NOT COPY-PASTE EXAMPLES. You MUST INVENT unique camera movements and Sound Effects (SFX) for EACH SPECIFIC SCENE based on what is happening in the story.
+    - Think like a Director: If a boy sees a lizard, write: "Fast tilt down to a tiny lizard on wall, quick pan to boy's terrified funny face, intense shaking. SFX: Cartoon scurrying, funny boing, gulp sound."
+    - If 2 friends are talking: "Camera pans back and forth between the two friends, awkward stare. SFX: Cricket chirping, record scratch."
+    - Always match the overall vibe of {MY_STORY_GENRE}.
     ADD THIS EXACTLY AT THE END OF VIDEO PROMPT: ", no voice, no background music, high quality, 8k".
     """
     
@@ -74,7 +72,6 @@ def generate_ai_script(topic):
 
 def generate_ai_metadata(topic):
     print("🚀 AI से Viral SEO (Title, Tags) बनवा रहा हूँ...")
-    # 🚨 SMART SEO LOGIC: यह भी Genre के हिसाब से बदल जाएगा
     prompt = f"""You are an expert YouTube SEO manager for a channel that makes {MY_STORY_GENRE} videos.
     I am making a YouTube Shorts video about this topic: "{topic}".
     Give me a viral metadata package in EXACTLY this format:
